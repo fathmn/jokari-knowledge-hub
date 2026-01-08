@@ -1,19 +1,33 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import List
-from app.database import get_db
+from uuid import UUID
+from app.database import get_db, SessionLocal
 from app.models.document import Document, Department, DocType, Confidentiality, DocumentStatus
 from app.models.audit_log import AuditLog
 from app.services.storage import get_storage_service
-from app.workers.tasks import process_document_task
+from app.services.ingestion import IngestionService
 from app.schemas.knowledge.registry import get_schema_registry
 
 router = APIRouter()
 
 
+def process_document_background(document_id: str):
+    """Background task to process a document."""
+    db = SessionLocal()
+    try:
+        service = IngestionService(db)
+        service.process_document(UUID(document_id))
+    except Exception as e:
+        print(f"Error processing document {document_id}: {e}")
+    finally:
+        db.close()
+
+
 @router.post("")
 async def upload_documents(
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     department: Department = Form(...),
     doc_type: DocType = Form(...),
@@ -86,14 +100,13 @@ async def upload_documents(
             db.add(audit)
             db.commit()
 
-            # Queue processing task
-            task = process_document_task.delay(str(document.id))
+            # Process document in background (using FastAPI BackgroundTasks instead of Celery)
+            background_tasks.add_task(process_document_background, str(document.id))
 
             results.append({
                 "document_id": str(document.id),
                 "filename": file.filename,
-                "job_id": task.id,
-                "status": "queued"
+                "status": "processing"
             })
 
         except Exception as e:
