@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import ClassVar, Optional
 from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -17,8 +18,9 @@ class RecordAttachment(Base):
     file_size = Column(String(50), nullable=True)  # Human-readable size
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    # Non-persistent attribute for presigned URL
-    url: str = None
+    # Non-persistent attribute for presigned URL (not a DB column)
+    url: Optional[str] = None
+    __allow_unmapped__ = True
 
     # Relationships
     record = relationship("Record", back_populates="attachments")
