@@ -18,8 +18,7 @@ celery==5.3.6
 redis==5.0.1
 
 # Supabase Storage
-supabase==2.3.4
-storage3==0.7.0
+supabase>=2.0.0
 
 # Document Parsing
 python-docx==1.1.0
