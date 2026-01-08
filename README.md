@@ -215,3 +215,38 @@ Bei erneutem Upload eines Dokuments:
 ## Lizenz
 
 Proprietär - Jokari GmbH
+
+## Production Deployment
+
+### Option 1: Vercel + Railway + Supabase (Empfohlen)
+
+#### 1. Supabase (Datenbank)
+1. Gehe zu [supabase.com](https://supabase.com) und erstelle ein Projekt
+2. Kopiere die `DATABASE_URL` aus Settings > Database
+
+#### 2. Railway (Backend)
+1. Gehe zu [railway.app](https://railway.app)
+2. "New Project" > "Deploy from GitHub repo"
+3. Wähle `jokari-knowledge-hub` und setze Root Directory: `backend`
+4. Füge Environment Variables hinzu:
+   - `DATABASE_URL` (von Supabase)
+   - `REDIS_URL` (Railway Redis Service hinzufügen)
+   - `LLM_PROVIDER=stub` (oder `claude` mit API Key)
+5. Nach Deploy: Kopiere die Backend-URL (z.B. `https://jokari-backend.up.railway.app`)
+
+#### 3. Vercel (Frontend)
+1. Gehe zu [vercel.com](https://vercel.com)
+2. "Import Project" > Wähle `jokari-knowledge-hub`
+3. Root Directory: `frontend`
+4. Environment Variables:
+   - `NEXT_PUBLIC_API_URL` = Backend-URL von Railway
+5. Deploy!
+
+### Option 2: Docker Compose (Self-Hosted)
+
+```bash
+# Auf deinem Server
+git clone https://github.com/fathmn/jokari-knowledge-hub.git
+cd jokari-knowledge-hub
+docker-compose up -d
+```
