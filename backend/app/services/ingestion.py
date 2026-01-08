@@ -124,7 +124,13 @@ class IngestionService:
         )
 
         # Run extraction (sync wrapper for async)
-        result = asyncio.get_event_loop().run_until_complete(
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
             extractor.extract(full_text, schema, context)
         )
 
