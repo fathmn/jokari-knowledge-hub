@@ -93,32 +93,36 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-10 min-h-full">
+      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Review-Warteschlange</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-[28px] font-semibold text-neutral-900 tracking-tight">Review-Warteschlange</h1>
+          <p className="text-neutral-500 mt-1">
             {data?.total || 0} Einträge zur Prüfung
           </p>
         </div>
         <button
           onClick={fetchRecords}
-          className="flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-700
+                     bg-white border border-neutral-200 rounded-xl hover:bg-neutral-50
+                     hover:border-neutral-300 transition-colors"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Aktualisieren
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-3 mb-6">
         <select
           value={statusFilter}
           onChange={(e) => {
             setStatusFilter(e.target.value)
             setPage(1)
           }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+          className="px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm
+                     text-neutral-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
           <option value="">Alle Status</option>
           <option value="pending">Ausstehend</option>
@@ -133,7 +137,8 @@ export default function ReviewPage() {
             setDepartmentFilter(e.target.value)
             setPage(1)
           }}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+          className="px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm
+                     text-neutral-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
           <option value="">Alle Abteilungen</option>
           {Object.entries(departmentLabels).map(([key, label]) => (
@@ -144,61 +149,77 @@ export default function ReviewPage() {
 
       {/* Record Cards */}
       {loading ? (
-        <div className="p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+        <div className="p-12 text-center">
+          <div className="w-10 h-10 border-4 border-neutral-200 border-t-primary-500 rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-neutral-500 mt-4">Lade Records...</p>
         </div>
       ) : data?.records.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">Keine Records in dieser Kategorie</p>
+        <div className="card p-12 text-center">
+          <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+          <p className="text-neutral-500 font-medium">Keine Records in dieser Kategorie</p>
+          <p className="text-sm text-neutral-400 mt-1">Laden Sie ein Dokument hoch, um Records zu extrahieren</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {data?.records.map((record) => (
             <Link
               key={record.id}
               href={`/review/${record.id}`}
-              className="block bg-white rounded-xl border border-gray-200 p-5 hover:border-primary-300 hover:shadow-md transition-all"
+              className="card card-hover block p-5"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   {/* Title & Badges */}
                   <div className="flex items-center gap-3 mb-2">
-                    <Package className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    <div className="p-2 bg-neutral-100 rounded-lg">
+                      <Package className="w-4 h-4 text-neutral-600" />
+                    </div>
+                    <h3 className="text-base font-semibold text-neutral-900 truncate">
                       {getDisplayTitle(record)}
                     </h3>
                     {record.data_json?.artnr && (
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded">
+                      <span className="px-2 py-0.5 bg-accent-100 text-accent-700 text-xs font-mono rounded-full">
                         Art. {record.data_json.artnr}
                       </span>
                     )}
                   </div>
 
                   {/* Description */}
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {getShortDescription(record)}
-                  </p>
+                  {getShortDescription(record) && (
+                    <p className="text-sm text-neutral-500 mb-3 line-clamp-2 ml-11">
+                      {getShortDescription(record)}
+                    </p>
+                  )}
 
                   {/* Meta Info */}
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <span className="px-2 py-1 bg-gray-100 rounded">
+                  <div className="flex items-center gap-3 text-xs ml-11">
+                    <span className="px-2 py-1 bg-neutral-100 text-neutral-600 font-medium rounded-lg">
                       {schemaLabels[record.schema_type] || record.schema_type}
                     </span>
-                    <span>
+                    <span className="text-neutral-400">•</span>
+                    <span className="text-neutral-500">
                       {departmentLabels[record.department] || record.department}
                     </span>
+                    <span className="text-neutral-400">•</span>
                     <div className="flex items-center gap-2">
-                      <span>Vollständigkeit:</span>
-                      <CompletenessBar score={record.completeness_score} showLabel size="sm" />
+                      <span className="text-neutral-500">Vollständig:</span>
+                      <span className={`font-semibold tabular-nums ${
+                        record.completeness_score >= 0.8 ? 'text-emerald-600' :
+                        record.completeness_score >= 0.5 ? 'text-primary-600' :
+                        'text-red-600'
+                      }`}>
+                        {Math.round(record.completeness_score * 100)}%
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Right Side */}
-                <div className="flex items-center gap-4 ml-4">
-                  <StatusBadge status={record.status as any} />
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                <div className="flex items-center gap-3 ml-4">
+                  <StatusBadge status={record.status as any} size="sm" />
+                  <div className="p-2 text-neutral-400 group-hover:text-neutral-900">
+                    <ChevronRight className="w-5 h-5" />
+                  </div>
                 </div>
               </div>
             </Link>
@@ -208,11 +229,13 @@ export default function ReviewPage() {
 
       {/* Pagination */}
       {data && data.pages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center items-center gap-1 mt-8">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-white text-neutral-600
+                       border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50
+                       disabled:cursor-not-allowed transition-colors"
           >
             Zurück
           </button>
@@ -222,10 +245,10 @@ export default function ReviewPage() {
               <button
                 key={p}
                 onClick={() => setPage(p)}
-                className={`px-3 py-1 rounded ${
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   p === page
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-neutral-900 text-white'
+                    : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'
                 }`}
               >
                 {p}
@@ -235,7 +258,9 @@ export default function ReviewPage() {
           <button
             onClick={() => setPage(Math.min(data.pages, page + 1))}
             disabled={page === data.pages}
-            className="px-3 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-white text-neutral-600
+                       border border-neutral-200 hover:bg-neutral-50 disabled:opacity-50
+                       disabled:cursor-not-allowed transition-colors"
           >
             Weiter
           </button>

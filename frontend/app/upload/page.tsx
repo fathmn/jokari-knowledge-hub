@@ -122,210 +122,250 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Dokumente hochladen</h1>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Dropzone */}
-        <div
-          {...getRootProps()}
-          className={`
-            border-2 border-dashed rounded-xl p-8 text-center cursor-pointer
-            transition-colors
-            ${isDragActive
-              ? 'border-primary-500 bg-primary-50'
-              : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
-            }
-          `}
-        >
-          <input {...getInputProps()} />
-          <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          {isDragActive ? (
-            <p className="text-primary-600 font-medium">Dateien hier ablegen...</p>
-          ) : (
-            <>
-              <p className="text-gray-600 font-medium">
-                Dateien hierher ziehen oder klicken zum Auswählen
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Unterstützt: DOCX, DOC, MD, CSV, XLSX, PDF
-              </p>
-            </>
-          )}
+    <div className="p-10 min-h-full">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-[28px] font-semibold text-neutral-900 tracking-tight">Dokumente hochladen</h1>
+          <p className="text-neutral-500 mt-1">Laden Sie Dokumente zur Wissensextraktion hoch</p>
         </div>
 
-        {/* File List */}
-        {files.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 divide-y">
-            {files.map((file, index) => (
-              <div key={index} className="flex items-center justify-between p-4">
-                <div className="flex items-center">
-                  <FileText className="w-5 h-5 text-gray-400 mr-3" />
-                  <span className="text-sm text-gray-900">{file.name}</span>
-                  <span className="text-xs text-gray-500 ml-2">
-                    ({(file.size / 1024).toFixed(1)} KB)
-                  </span>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Dropzone */}
+          <div
+            {...getRootProps()}
+            className={`
+              card p-10 text-center cursor-pointer border-2 border-dashed
+              transition-all duration-200
+              ${isDragActive
+                ? 'border-primary-500 bg-primary-50 scale-[1.02]'
+                : 'border-neutral-300 hover:border-neutral-400 hover:bg-neutral-50'
+              }
+            `}
+          >
+            <input {...getInputProps()} />
+            <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center ${
+              isDragActive ? 'bg-primary-500' : 'bg-neutral-100'
+            }`}>
+              <Upload className={`w-8 h-8 ${isDragActive ? 'text-neutral-900' : 'text-neutral-400'}`} />
+            </div>
+            {isDragActive ? (
+              <p className="text-neutral-900 font-semibold text-lg">Dateien hier ablegen...</p>
+            ) : (
+              <>
+                <p className="text-neutral-700 font-semibold text-lg">
+                  Dateien hierher ziehen
+                </p>
+                <p className="text-neutral-500 mt-1">
+                  oder <span className="text-neutral-900 underline">durchsuchen</span>
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
+                  {['DOCX', 'PDF', 'MD', 'CSV', 'XLSX'].map((ext) => (
+                    <span key={ext} className="px-2 py-1 bg-neutral-100 text-neutral-600 text-xs font-medium rounded">
+                      {ext}
+                    </span>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  className="text-gray-400 hover:text-red-500"
+              </>
+            )}
+          </div>
+
+          {/* File List */}
+          {files.length > 0 && (
+            <div className="card divide-y divide-neutral-100">
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center justify-between p-4">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-neutral-100 rounded-lg mr-3">
+                      <FileText className="w-5 h-5 text-neutral-600" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-neutral-900">{file.name}</span>
+                      <span className="text-xs text-neutral-500 ml-2">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Metadata Form */}
+          <div className="card p-6">
+            <h2 className="text-lg font-semibold text-neutral-900 mb-6">Metadaten</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Abteilung <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={department}
+                  onChange={(e) => {
+                    setDepartment(e.target.value)
+                    setDocType('')
+                  }}
+                  className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl
+                             focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                             text-neutral-900 text-sm"
+                  required
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <option value="">Auswählen...</option>
+                  {Object.keys(docTypes).map(dept => (
+                    <option key={dept} value={dept}>
+                      {departmentLabels[dept] || dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Dokumenttyp <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl
+                             focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                             text-neutral-900 text-sm disabled:opacity-50"
+                  required
+                  disabled={!department}
+                >
+                  <option value="">Auswählen...</option>
+                  {department && docTypes[department]?.map(type => (
+                    <option key={type} value={type}>
+                      {docTypeLabels[type] || type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Versionsdatum <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={versionDate}
+                  onChange={(e) => setVersionDate(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl
+                             focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                             text-neutral-900 text-sm"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Verantwortlich <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
+                  placeholder="Name oder E-Mail"
+                  className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl
+                             focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                             text-neutral-900 text-sm placeholder:text-neutral-400"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-neutral-700 mb-3">
+                  Vertraulichkeit
+                </label>
+                <div className="flex gap-6">
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      value="internal"
+                      checked={confidentiality === 'internal'}
+                      onChange={(e) => setConfidentiality(e.target.value)}
+                      className="w-4 h-4 text-neutral-900 border-neutral-300 focus:ring-primary-500"
+                    />
+                    <span className="ml-2 text-sm text-neutral-700 group-hover:text-neutral-900">Intern</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer group">
+                    <input
+                      type="radio"
+                      value="public"
+                      checked={confidentiality === 'public'}
+                      onChange={(e) => setConfidentiality(e.target.value)}
+                      className="w-4 h-4 text-neutral-900 border-neutral-300 focus:ring-primary-500"
+                    />
+                    <span className="ml-2 text-sm text-neutral-700 group-hover:text-neutral-900">Öffentlich</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={uploading || files.length === 0}
+            className="w-full py-3.5 px-4 bg-neutral-900 text-white font-semibold rounded-xl
+                       hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400
+                       disabled:cursor-not-allowed transition-colors"
+          >
+            {uploading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Wird hochgeladen...
+              </span>
+            ) : (
+              'Hochladen und Verarbeiten'
+            )}
+          </button>
+        </form>
+
+        {/* Results */}
+        {results.length > 0 && (
+          <div className="mt-8 space-y-3">
+            <h2 className="text-lg font-semibold text-neutral-900">Ergebnisse</h2>
+            {results.map((result, index) => (
+              <div
+                key={index}
+                className={`card flex items-center p-4 ${
+                  result.error
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                <div className={`p-2 rounded-lg mr-4 ${
+                  result.error ? 'bg-red-100' : 'bg-emerald-100'
+                }`}>
+                  {result.error ? (
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5 text-emerald-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-neutral-900">{result.filename}</p>
+                  {result.error ? (
+                    <p className="text-sm text-red-600">{result.error}</p>
+                  ) : (
+                    <p className="text-sm text-emerald-600">
+                      Erfolgreich hochgeladen - Verarbeitung gestartet
+                    </p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
-
-        {/* Metadata Form */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Metadaten</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Abteilung *
-              </label>
-              <select
-                value={department}
-                onChange={(e) => {
-                  setDepartment(e.target.value)
-                  setDocType('')
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-              >
-                <option value="">Auswählen...</option>
-                {Object.keys(docTypes).map(dept => (
-                  <option key={dept} value={dept}>
-                    {departmentLabels[dept] || dept}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dokumenttyp *
-              </label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-                disabled={!department}
-              >
-                <option value="">Auswählen...</option>
-                {department && docTypes[department]?.map(type => (
-                  <option key={type} value={type}>
-                    {docTypeLabels[type] || type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Versionsdatum *
-              </label>
-              <input
-                type="date"
-                value={versionDate}
-                onChange={(e) => setVersionDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Verantwortlich *
-              </label>
-              <input
-                type="text"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                placeholder="Name oder E-Mail"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                required
-              />
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vertraulichkeit
-              </label>
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="internal"
-                    checked={confidentiality === 'internal'}
-                    onChange={(e) => setConfidentiality(e.target.value)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Intern</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="public"
-                    checked={confidentiality === 'public'}
-                    onChange={(e) => setConfidentiality(e.target.value)}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Öffentlich</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={uploading || files.length === 0}
-          className="w-full py-3 px-4 bg-primary-600 text-white font-medium rounded-lg
-                     hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed
-                     transition-colors"
-        >
-          {uploading ? 'Wird hochgeladen...' : 'Hochladen und Verarbeiten'}
-        </button>
-      </form>
-
-      {/* Results */}
-      {results.length > 0 && (
-        <div className="mt-8 space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900">Ergebnisse</h2>
-          {results.map((result, index) => (
-            <div
-              key={index}
-              className={`flex items-center p-4 rounded-lg ${
-                result.error
-                  ? 'bg-red-50 border border-red-200'
-                  : 'bg-green-50 border border-green-200'
-              }`}
-            >
-              {result.error ? (
-                <AlertCircle className="w-5 h-5 text-red-500 mr-3" />
-              ) : (
-                <CheckCircle className="w-5 h-5 text-green-500 mr-3" />
-              )}
-              <div>
-                <p className="font-medium text-gray-900">{result.filename}</p>
-                {result.error ? (
-                  <p className="text-sm text-red-600">{result.error}</p>
-                ) : (
-                  <p className="text-sm text-green-600">
-                    Erfolgreich hochgeladen - Verarbeitung gestartet
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   )
 }

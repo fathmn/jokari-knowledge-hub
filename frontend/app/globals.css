@@ -3,30 +3,87 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-rgb: 250, 250, 250;
+  --foreground: #1d1d1f;
+  --background: #f5f5f7;
+  --primary: #ffed00;
+  --accent: #24388d;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
+  color: var(--foreground);
+  background: var(--background);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
-/* Custom scrollbar */
+/* Modern scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: #d4d4d4;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: #a3a3a3;
+}
+
+/* Selection */
+::selection {
+  background: #ffed00;
+  color: #171717;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #ffed00;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Apple-style components */
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl border border-neutral-200/60;
+  }
+
+  .card-hover {
+    @apply hover:bg-neutral-50 hover:border-neutral-300/60;
+  }
+
+  .btn-primary {
+    @apply bg-neutral-900 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-neutral-800 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-white text-neutral-900 px-5 py-2.5 rounded-xl font-medium border border-neutral-200 hover:bg-neutral-50;
+  }
+
+  .btn-accent {
+    @apply bg-primary-500 text-neutral-900 px-5 py-2.5 rounded-xl font-semibold hover:bg-primary-400 active:scale-[0.98];
+  }
+
+  /* Apple-style section titles */
+  .section-title {
+    @apply text-2xl font-semibold text-neutral-900 tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-neutral-500 text-sm;
+  }
 }

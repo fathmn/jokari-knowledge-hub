@@ -10,15 +10,16 @@ export default function CompletenessBar({ score, showLabel = false, size = 'md' 
   const percentage = Math.round(score * 100)
 
   const getColor = () => {
-    if (percentage >= 80) return 'bg-green-500'
-    if (percentage >= 50) return 'bg-yellow-500'
+    if (percentage >= 80) return 'bg-emerald-500'
+    if (percentage >= 50) return 'bg-primary-500'
+    if (percentage >= 25) return 'bg-amber-500'
     return 'bg-red-500'
   }
 
   const sizeClasses = {
-    sm: 'h-1.5',
-    md: 'h-2',
-    lg: 'h-3'
+    sm: 'h-1',
+    md: 'h-1.5',
+    lg: 'h-2'
   }
 
   const labelClasses = {
@@ -28,15 +29,24 @@ export default function CompletenessBar({ score, showLabel = false, size = 'md' 
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <div className={clsx('flex-1 bg-gray-200 rounded-full overflow-hidden', sizeClasses[size])}>
+    <div className="flex items-center gap-3">
+      <div className={clsx(
+        'flex-1 bg-neutral-200 rounded-full overflow-hidden',
+        sizeClasses[size]
+      )}>
         <div
-          className={clsx('h-full rounded-full transition-all', getColor())}
+          className={clsx(
+            'h-full rounded-full transition-all duration-500 ease-out',
+            getColor()
+          )}
           style={{ width: `${percentage}%` }}
         />
       </div>
       {showLabel && (
-        <span className={clsx('font-medium text-gray-600 text-right', labelClasses[size])}>
+        <span className={clsx(
+          'font-semibold text-neutral-700 text-right tabular-nums',
+          labelClasses[size]
+        )}>
           {percentage}%
         </span>
       )}

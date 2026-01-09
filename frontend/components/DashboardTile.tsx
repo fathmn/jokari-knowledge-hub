@@ -5,27 +5,55 @@ interface DashboardTileProps {
   title: string
   value: number
   icon: LucideIcon
-  color: 'blue' | 'yellow' | 'green' | 'red'
+  color: 'primary' | 'warning' | 'success' | 'danger'
+  trend?: {
+    value: number
+    label: string
+  }
 }
 
-const colorClasses = {
-  blue: 'bg-blue-50 text-blue-600',
-  yellow: 'bg-yellow-50 text-yellow-600',
-  green: 'bg-green-50 text-green-600',
-  red: 'bg-red-50 text-red-600',
+const colorConfig = {
+  primary: {
+    icon: 'text-neutral-900',
+    accent: 'bg-neutral-100',
+  },
+  warning: {
+    icon: 'text-amber-600',
+    accent: 'bg-amber-50',
+  },
+  success: {
+    icon: 'text-emerald-600',
+    accent: 'bg-emerald-50',
+  },
+  danger: {
+    icon: 'text-red-600',
+    accent: 'bg-red-50',
+  },
 }
 
-export default function DashboardTile({ title, value, icon: Icon, color }: DashboardTileProps) {
+export default function DashboardTile({ title, value, icon: Icon, color, trend }: DashboardTileProps) {
+  const config = colorConfig[color]
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center">
-        <div className={clsx('p-3 rounded-lg', colorClasses[color])}>
-          <Icon className="w-6 h-6" />
+    <div className="card p-6 hover:bg-neutral-50/50 transition-colors">
+      <div className="flex items-center gap-3 mb-4">
+        <div className={clsx('p-2.5 rounded-xl', config.accent)}>
+          <Icon className={clsx('w-5 h-5', config.icon)} strokeWidth={1.5} />
         </div>
-        <div className="ml-4">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
+        <p className="text-[15px] font-medium text-neutral-600">{title}</p>
+      </div>
+      <div className="flex items-end justify-between">
+        <p className="text-[32px] font-semibold text-neutral-900 tracking-tight leading-none">
+          {value.toLocaleString('de-DE')}
+        </p>
+        {trend && (
+          <span className={clsx(
+            'text-xs font-medium px-2 py-1 rounded-lg',
+            trend.value >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+          )}>
+            {trend.value >= 0 ? '+' : ''}{trend.value}%
+          </span>
+        )}
       </div>
     </div>
   )
