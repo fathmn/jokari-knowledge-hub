@@ -142,47 +142,47 @@ export default function WissenDetailPage() {
   const title = data?.title || data?.name || data?.question || 'Unbenannt'
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       {/* Back Navigation */}
       <button
         onClick={() => router.back()}
-        className="flex items-center text-gray-600 hover:text-gray-900 mb-6"
+        className="flex items-center text-gray-600 hover:text-gray-900 mb-4 sm:mb-6 text-sm sm:text-base"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Zurück zur Übersicht
       </button>
 
       {/* Header Card */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex-1 min-w-0">
             {/* Category & Status */}
-            <div className="flex items-center gap-3 mb-3">
-              <span className="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+              <span className="px-2 sm:px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-xs sm:text-sm font-medium">
                 {schemaLabels[record.schema_type] || record.schema_type}
               </span>
-              <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+              <span className="px-2 sm:px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs sm:text-sm">
                 {departmentLabels[record.department] || record.department}
               </span>
-              <span className="flex items-center text-green-600 text-sm">
+              <span className="flex items-center text-green-600 text-xs sm:text-sm">
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Genehmigt
               </span>
             </div>
 
             {/* Title */}
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">{title}</h1>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-3 break-words">{title}</h1>
 
             {/* Article Number */}
             {data?.artnr && (
-              <div className="flex items-center text-blue-600 font-mono text-lg mb-4">
-                <Tag className="w-5 h-5 mr-2" />
-                Artikelnummer: {data.artnr}
+              <div className="flex items-center text-blue-600 font-mono text-sm sm:text-lg mb-3 sm:mb-4">
+                <Tag className="w-4 sm:w-5 h-4 sm:h-5 mr-2 shrink-0" />
+                <span className="truncate">Artikelnummer: {data.artnr}</span>
               </div>
             )}
 
             {/* Meta Info */}
-            <div className="flex items-center gap-6 text-sm text-gray-500">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs sm:text-sm text-gray-500">
               <span className="flex items-center">
                 <Calendar className="w-4 h-4 mr-1" />
                 Aktualisiert: {new Date(record.updated_at).toLocaleDateString('de-DE')}
@@ -191,7 +191,7 @@ export default function WissenDetailPage() {
             </div>
           </div>
 
-          <Package className="w-16 h-16 text-gray-200" />
+          <Package className="hidden sm:block w-12 lg:w-16 h-12 lg:h-16 text-gray-200 shrink-0" />
         </div>
       </div>
 
@@ -392,17 +392,17 @@ export default function WissenDetailPage() {
 
       {/* Evidence Section */}
       {record.evidence_items && record.evidence_items.length > 0 && (
-        <div className="mt-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
+        <div className="mt-6 sm:mt-8 p-4 sm:p-6 bg-gray-50 rounded-xl border border-gray-200">
+          <h3 className="text-xs sm:text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 sm:mb-4">
             Quellenbelege ({record.evidence_items.length})
           </h3>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {record.evidence_items.slice(0, 5).map((ev) => (
               <div key={ev.id} className="bg-white p-3 rounded-lg border border-gray-200">
                 <span className="text-xs font-medium text-primary-600 uppercase">
                   {fieldLabels[ev.field_path] || ev.field_path}
                 </span>
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                <p className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2">
                   &ldquo;{ev.excerpt}&rdquo;
                 </p>
               </div>
@@ -412,10 +412,10 @@ export default function WissenDetailPage() {
       )}
 
       {/* Edit Link */}
-      <div className="mt-8 flex justify-end">
+      <div className="mt-6 sm:mt-8 flex justify-end">
         <Link
           href={`/review/${record.id}`}
-          className="text-sm text-gray-500 hover:text-primary-600"
+          className="text-xs sm:text-sm text-gray-500 hover:text-primary-600"
         >
           Im Review-Modus bearbeiten →
         </Link>
@@ -439,12 +439,12 @@ function ContentSection({
   const bgColor = variant === 'warning' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
 
   return (
-    <div className={`rounded-xl border p-6 ${bgColor}`}>
-      <div className="flex items-center gap-2 mb-4">
+    <div className={`rounded-xl border p-4 sm:p-6 ${bgColor}`}>
+      <div className="flex items-center gap-2 mb-3 sm:mb-4">
         <span className={variant === 'warning' ? 'text-amber-500' : 'text-gray-400'}>
           {icon}
         </span>
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900">{title}</h2>
       </div>
       {children}
     </div>

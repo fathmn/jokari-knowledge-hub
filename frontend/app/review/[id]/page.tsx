@@ -339,18 +339,18 @@ export default function RecordDetailPage() {
     'anwendung', 'features', 'medien', 'question', 'answer', 'warnings', '_source_section', 'links']
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 lg:mb-8">
+        <div className="flex items-start sm:items-center">
           <button
             onClick={() => router.back()}
-            className="mr-4 p-2 hover:bg-gray-100 rounded-lg"
+            className="mr-3 sm:mr-4 p-2 hover:bg-gray-100 rounded-lg shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-3 mb-1">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">
                 {schemaLabels[record.schema_type] || record.schema_type}
               </span>
@@ -359,11 +359,11 @@ export default function RecordDetailPage() {
               </span>
               <StatusBadge status={record.status as any} />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{title}</h1>
             {data?.artnr && (
-              <div className="flex items-center text-blue-600 font-mono mt-1">
-                <Tag className="w-4 h-4 mr-1" />
-                Artikelnummer: {data.artnr}
+              <div className="flex items-center text-blue-600 font-mono mt-1 text-sm">
+                <Tag className="w-4 h-4 mr-1 shrink-0" />
+                <span className="truncate">Artikelnummer: {data.artnr}</span>
               </div>
             )}
           </div>
@@ -371,21 +371,21 @@ export default function RecordDetailPage() {
 
         {/* Actions */}
         {record.status !== 'approved' && record.status !== 'rejected' && (
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={handleReject}
               disabled={actionLoading}
-              className="flex items-center px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 text-sm sm:text-base"
             >
-              <XCircle className="w-4 h-4 mr-2" />
+              <XCircle className="w-4 h-4 mr-1.5 sm:mr-2" />
               Ablehnen
             </button>
             <button
               onClick={handleApprove}
               disabled={actionLoading}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              className="flex-1 sm:flex-none flex items-center justify-center px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm sm:text-base"
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
+              <CheckCircle className="w-4 h-4 mr-1.5 sm:mr-2" />
               Genehmigen
             </button>
           </div>
@@ -931,13 +931,13 @@ function ContentCard({
   const bgColor = variant === 'warning' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
 
   return (
-    <div className={`rounded-xl border p-5 ${bgColor}`}>
-      <div className="flex items-center justify-between mb-4">
+    <div className={`rounded-xl border p-4 sm:p-5 ${bgColor}`}>
+      <div className="flex items-center justify-between mb-3 sm:mb-4">
         <div className="flex items-center gap-2">
           <span className={variant === 'warning' ? 'text-amber-500' : 'text-gray-400'}>
             {icon}
           </span>
-          <h2 className="font-semibold text-gray-900">{title}</h2>
+          <h2 className="font-semibold text-gray-900 text-sm sm:text-base">{title}</h2>
         </div>
         {canEdit && onEdit && (
           <button

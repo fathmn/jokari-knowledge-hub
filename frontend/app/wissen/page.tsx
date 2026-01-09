@@ -127,96 +127,100 @@ export default function WissenPage() {
   }, {} as { [key: string]: RecordData[] })
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-8 h-8 text-primary-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Wissensdatenbank</h1>
+      <div className="mb-6 sm:mb-8">
+        <div className="flex items-center gap-2 sm:gap-3 mb-2">
+          <BookOpen className="w-6 sm:w-8 h-6 sm:h-8 text-primary-600" />
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Wissensdatenbank</h1>
         </div>
-        <p className="text-gray-500">
+        <p className="text-sm sm:text-base text-gray-500">
           Alle geprüften und genehmigten Wissenseinträge nach Abteilung und Kategorie
         </p>
       </div>
 
       {/* Search & Filters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-        <div className="flex flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4">
           {/* Search */}
-          <div className="flex-1 min-w-64">
+          <div className="flex-1 sm:min-w-64">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Suche nach Titel, Beschreibung, Artikelnummer..."
+                placeholder="Suche nach Titel, Beschreibung..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm sm:text-base"
               />
             </div>
           </div>
 
-          {/* Department Filter */}
-          <select
-            value={departmentFilter}
-            onChange={(e) => {
-              setDepartmentFilter(e.target.value)
-              setPage(1)
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Alle Abteilungen</option>
-            {Object.entries(departmentLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
+          {/* Filters Row */}
+          <div className="flex flex-wrap gap-2 sm:gap-4">
+            {/* Department Filter */}
+            <select
+              value={departmentFilter}
+              onChange={(e) => {
+                setDepartmentFilter(e.target.value)
+                setPage(1)
+              }}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+            >
+              <option value="">Alle Abteilungen</option>
+              {Object.entries(departmentLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
 
-          {/* Schema Filter */}
-          <select
-            value={schemaFilter}
-            onChange={(e) => {
-              setSchemaFilter(e.target.value)
-              setPage(1)
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="">Alle Kategorien</option>
-            {Object.entries(schemaLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
+            {/* Schema Filter */}
+            <select
+              value={schemaFilter}
+              onChange={(e) => {
+                setSchemaFilter(e.target.value)
+                setPage(1)
+              }}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm sm:text-base"
+            >
+              <option value="">Alle Kategorien</option>
+              {Object.entries(schemaLabels).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
 
-          {/* Group Toggle */}
-          <button
-            onClick={() => setGroupByDepartment(!groupByDepartment)}
-            className={`px-4 py-2 rounded-lg border ${
-              groupByDepartment
-                ? 'bg-primary-50 border-primary-300 text-primary-700'
-                : 'border-gray-300 text-gray-600'
-            }`}
-          >
-            <Filter className="w-4 h-4 inline mr-2" />
-            Nach Abteilung
-          </button>
+            {/* Group Toggle */}
+            <button
+              onClick={() => setGroupByDepartment(!groupByDepartment)}
+              className={`px-3 sm:px-4 py-2 rounded-lg border text-sm sm:text-base whitespace-nowrap ${
+                groupByDepartment
+                  ? 'bg-primary-50 border-primary-300 text-primary-700'
+                  : 'border-gray-300 text-gray-600'
+              }`}
+            >
+              <Filter className="w-4 h-4 inline mr-1.5 sm:mr-2" />
+              <span className="hidden sm:inline">Nach Abteilung</span>
+              <span className="sm:hidden">Gruppieren</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
         {Object.entries(departmentLabels).map(([key, label]) => {
           const count = data?.records.filter(r => r.department === key).length || 0
           return (
             <button
               key={key}
               onClick={() => setDepartmentFilter(departmentFilter === key ? '' : key)}
-              className={`p-4 rounded-xl border transition-all ${
+              className={`p-3 sm:p-4 rounded-xl border transition-all ${
                 departmentFilter === key
                   ? 'border-primary-500 bg-primary-50'
                   : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
             >
-              <div className="text-2xl font-bold text-gray-900">{count}</div>
-              <div className="text-sm text-gray-500">{label}</div>
+              <div className="text-xl sm:text-2xl font-bold text-gray-900">{count}</div>
+              <div className="text-xs sm:text-sm text-gray-500 truncate">{label}</div>
             </button>
           )
         })}
@@ -265,21 +269,21 @@ export default function WissenPage() {
 
       {/* Pagination */}
       {data && data.pages > 1 && (
-        <div className="flex justify-center gap-2 mt-8">
+        <div className="flex justify-center items-center gap-2 mt-6 sm:mt-8">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+            className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 text-sm sm:text-base"
           >
             Zurück
           </button>
-          <span className="px-4 py-2 text-gray-600">
-            Seite {page} von {data.pages}
+          <span className="px-2 sm:px-4 py-2 text-sm sm:text-base text-gray-600">
+            {page} / {data.pages}
           </span>
           <button
             onClick={() => setPage(Math.min(data.pages, page + 1))}
             disabled={page === data.pages}
-            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50"
+            className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 text-sm sm:text-base"
           >
             Weiter
           </button>

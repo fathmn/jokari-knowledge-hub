@@ -144,29 +144,29 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 lg:mb-8">
+        <div className="flex items-start sm:items-center min-w-0">
           <button
             onClick={() => router.back()}
-            className="mr-4 p-2 hover:bg-gray-100 rounded-lg"
+            className="mr-3 sm:mr-4 p-2 hover:bg-gray-100 rounded-lg shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center">
-              <FileText className="w-6 h-6 text-gray-400 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">{document.filename}</h1>
+              <FileText className="w-5 sm:w-6 h-5 sm:h-6 text-gray-400 mr-2 sm:mr-3 shrink-0" />
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{document.filename}</h1>
             </div>
-            <div className="mt-1">
+            <div className="mt-1 ml-7 sm:ml-9">
               <StatusBadge status={document.status as any} />
             </div>
           </div>
         </div>
         <button
           onClick={handleDelete}
-          className="flex items-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+          className="flex items-center justify-center px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg w-full sm:w-auto"
         >
           <Trash2 className="w-4 h-4 mr-2" />
           Löschen
@@ -181,9 +181,9 @@ export default function DocumentDetailPage() {
       )}
 
       {/* Metadata */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Metadaten</h2>
-        <dl className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Metadaten</h2>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div>
             <dt className="text-sm text-gray-500">Abteilung</dt>
             <dd className="text-sm font-medium text-gray-900">{document.department}</dd>
@@ -218,11 +218,11 @@ export default function DocumentDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-8">
+      <div className="border-b border-gray-200 mb-4 sm:mb-6">
+        <nav className="flex gap-4 sm:gap-8">
           <button
             onClick={() => setActiveTab('records')}
-            className={`pb-4 text-sm font-medium border-b-2 ${
+            className={`pb-3 sm:pb-4 text-sm font-medium border-b-2 ${
               activeTab === 'records'
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -232,7 +232,7 @@ export default function DocumentDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('chunks')}
-            className={`pb-4 text-sm font-medium border-b-2 ${
+            className={`pb-3 sm:pb-4 text-sm font-medium border-b-2 ${
               activeTab === 'chunks'
                 ? 'border-primary-600 text-primary-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -258,14 +258,14 @@ export default function DocumentDetailPage() {
                 <Link
                   key={record.id}
                   href={`/review/${record.id}`}
-                  className="block bg-white rounded-xl border border-gray-200 p-6 hover:border-primary-300 hover:shadow-md transition-all"
+                  className="block bg-white rounded-xl border border-gray-200 p-4 sm:p-6 hover:border-primary-300 hover:shadow-md transition-all"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       {/* Header */}
-                      <div className="flex items-center gap-3 mb-2">
-                        <Package className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                        <h3 className="text-lg font-semibold text-gray-900 truncate">{title}</h3>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                        <Package className="w-4 sm:w-5 h-4 sm:h-5 text-gray-400 flex-shrink-0" />
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">{title}</h3>
                         {data?.artnr && (
                           <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-mono rounded">
                             <Tag className="w-3 h-3" />
@@ -282,7 +282,7 @@ export default function DocumentDetailPage() {
                       )}
 
                       {/* Key Fields Preview */}
-                      <div className="flex flex-wrap gap-2 mb-3">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
                         {data?.kabeltypen?.slice(0, 3).map((k: string, i: number) => (
                           <span key={i} className="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded">
                             {k}
@@ -296,13 +296,13 @@ export default function DocumentDetailPage() {
                         {data?.features?.slice(0, 2).map((f: string, i: number) => (
                           <span key={i} className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded">
                             <CheckCircle className="w-3 h-3" />
-                            {f.slice(0, 30)}{f.length > 30 ? '...' : ''}
+                            <span className="truncate max-w-[100px] sm:max-w-[150px]">{f.slice(0, 30)}{f.length > 30 ? '...' : ''}</span>
                           </span>
                         ))}
                       </div>
 
                       {/* Meta */}
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-gray-500">
                         <span className="px-2 py-1 bg-gray-100 rounded">
                           {schemaLabels[record.schema_type] || record.schema_type}
                         </span>
@@ -314,7 +314,7 @@ export default function DocumentDetailPage() {
                     </div>
 
                     {/* Right Side */}
-                    <div className="flex items-center gap-3 ml-4">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-0 border-gray-100">
                       <StatusBadge status={record.status as any} />
                       <ChevronRight className="w-5 h-5 text-gray-400" />
                     </div>
@@ -332,9 +332,9 @@ export default function DocumentDetailPage() {
             chunks.map((chunk) => (
               <div
                 key={chunk.id}
-                className="bg-white rounded-xl border border-gray-200 p-6"
+                className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6"
               >
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                   <span className="text-sm font-semibold text-gray-700">
                     {chunk.section_path || `Textabschnitt ${chunk.chunk_index + 1}`}
                   </span>
