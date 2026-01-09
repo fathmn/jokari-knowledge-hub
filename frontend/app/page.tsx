@@ -83,15 +83,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="p-10 min-h-full">
+    <div className="p-4 sm:p-6 lg:p-10 min-h-full">
       {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-[28px] font-semibold text-neutral-900 tracking-tight">Dashboard</h1>
-        <p className="text-neutral-500 mt-1">Übersicht über Ihre Wissensdatenbank</p>
+      <div className="mb-6 sm:mb-8 lg:mb-10">
+        <h1 className="text-2xl sm:text-[28px] font-semibold text-neutral-900 tracking-tight">Dashboard</h1>
+        <p className="text-neutral-500 mt-1 text-sm sm:text-base">Übersicht über Ihre Wissensdatenbank</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
         <DashboardTile
           title="Dokumente"
           value={stats?.total_documents || 0}
@@ -118,9 +118,9 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Completeness by Department */}
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-neutral-900">
               Vollständigkeit nach Abteilung
@@ -151,7 +151,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top Missing Fields */}
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-neutral-900">
               Häufig fehlende Felder
@@ -182,7 +182,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stale Records */}
-        <div className="card p-6 lg:col-span-2">
+        <div className="card p-4 sm:p-6 lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 rounded-lg">

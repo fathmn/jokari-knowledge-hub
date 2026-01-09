@@ -35,20 +35,20 @@ export default function DashboardTile({ title, value, icon: Icon, color, trend }
   const config = colorConfig[color]
 
   return (
-    <div className="card p-6 hover:bg-neutral-50/50 transition-colors">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={clsx('p-2.5 rounded-xl', config.accent)}>
-          <Icon className={clsx('w-5 h-5', config.icon)} strokeWidth={1.5} />
+    <div className="card p-3 sm:p-4 lg:p-6 hover:bg-neutral-50/50 transition-colors">
+      <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-4">
+        <div className={clsx('p-1.5 sm:p-2 lg:p-2.5 rounded-lg sm:rounded-xl', config.accent)}>
+          <Icon className={clsx('w-4 h-4 sm:w-5 sm:h-5', config.icon)} strokeWidth={1.5} />
         </div>
-        <p className="text-[15px] font-medium text-neutral-600">{title}</p>
+        <p className="text-xs sm:text-sm lg:text-[15px] font-medium text-neutral-600 truncate">{title}</p>
       </div>
       <div className="flex items-end justify-between">
-        <p className="text-[32px] font-semibold text-neutral-900 tracking-tight leading-none">
+        <p className="text-xl sm:text-2xl lg:text-[32px] font-semibold text-neutral-900 tracking-tight leading-none">
           {value.toLocaleString('de-DE')}
         </p>
         {trend && (
           <span className={clsx(
-            'text-xs font-medium px-2 py-1 rounded-lg',
+            'text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md sm:rounded-lg',
             trend.value >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
           )}>
             {trend.value >= 0 ? '+' : ''}{trend.value}%
