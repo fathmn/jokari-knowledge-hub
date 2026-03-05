@@ -8,6 +8,7 @@ from app.extractors.base import (
     LLMExtractor,
     ExtractionContext,
     ExtractionResult,
+    ExtractedRecord,
     EvidencePointer
 )
 from app.config import get_settings
@@ -21,7 +22,7 @@ class ClaudeExtractor(LLMExtractor):
 
     def __init__(self):
         settings = get_settings()
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         self.model = "claude-sonnet-4-20250514"
         self.max_retries = 2
 
@@ -44,7 +45,7 @@ class ClaudeExtractor(LLMExtractor):
 
         for attempt in range(self.max_retries + 1):
             try:
-                response = self.client.messages.create(
+                response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=4096,
                     system=system_prompt,
@@ -62,6 +63,33 @@ class ClaudeExtractor(LLMExtractor):
                     errors.append(f"Versuch {attempt + 1}: Konnte kein JSON aus Antwort extrahieren")
                     continue
 
+                # Check for multi-record response
+                if isinstance(extracted_data, dict) and "records" in extracted_data and isinstance(extracted_data["records"], list):
+                    records = []
+                    for rec_item in extracted_data["records"]:
+                        rec_data = rec_item.get("data", rec_item)
+                        valid, _ = self._validate_with_schema(rec_data, schema)
+                        rec_evidence = self._extract_evidence(rec_data, text, context)
+                        records.append(ExtractedRecord(
+                            data=rec_data,
+                            schema_type=schema.__name__,
+                            evidence=rec_evidence,
+                            confidence=0.85 if valid else 0.5,
+                            source_section=rec_data.get("title") or rec_data.get("name")
+                        ))
+                    if records:
+                        return ExtractionResult(
+                            data=None,
+                            records=records,
+                            valid=True,
+                            errors=[],
+                            evidence=[],
+                            confidence=0.85,
+                            needs_review=False,
+                            raw_response=last_response
+                        )
+
+                # Single record response
                 # Validate with schema
                 valid, validation_errors = self._validate_with_schema(extracted_data, schema)
 
@@ -131,7 +159,11 @@ WICHTIGE REGELN:
 6. Bei fehlenden Pflichtfeldern: Setze sie auf leere Strings oder leere Listen
 
 AUSGABEFORMAT:
-Antworte mit einem JSON-Objekt, das zwei Schlüssel hat:
+Wenn das Dokument MEHRERE Entitäten enthält (z.B. mehrere Produkte, FAQs etc.):
+Antworte mit einem JSON-Objekt mit Schlüssel "records" - einer Liste von Objekten, jedes mit "data" und "evidence".
+
+Wenn das Dokument EINE einzelne Entität enthält:
+Antworte mit einem JSON-Objekt mit:
 - "data": Die extrahierten Daten gemäß Schema
 - "evidence": Eine Liste von Objekten mit "field" und "excerpt" für jeden belegten Wert
 """

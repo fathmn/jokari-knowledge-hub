@@ -26,6 +26,7 @@ export default function SuchePage() {
   const [schemaType, setSchemaType] = useState('')
   const [results, setResults] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null)
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -34,6 +35,7 @@ export default function SuchePage() {
 
     setLoading(true)
     setSelectedResult(null)
+    setError(null)
 
     try {
       const params = new URLSearchParams({ q: query })
@@ -41,10 +43,11 @@ export default function SuchePage() {
       if (schemaType) params.append('schema', schemaType)
 
       const res = await fetch(`/api/knowledge/search?${params}`)
+      if (!res.ok) throw new Error('Fehler bei der Suche')
       const data = await res.json()
       setResults(data)
     } catch (err) {
-      console.error('Fehler:', err)
+      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
     } finally {
       setLoading(false)
     }
@@ -106,6 +109,13 @@ export default function SuchePage() {
           </button>
         </div>
       </form>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       {/* Results */}
       {results && (

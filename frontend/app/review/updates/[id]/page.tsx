@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle, XCircle, Plus, Minus, RefreshCw } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/Toast'
 
 interface ProposedUpdate {
   id: string
@@ -25,6 +27,9 @@ export default function UpdateDetailPage() {
   const [update, setUpdate] = useState<ProposedUpdate | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (params.id) {
@@ -52,26 +57,33 @@ export default function UpdateDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actor: 'user' })
       })
+      showToast('Update genehmigt und angewendet', 'success')
       router.push('/review')
     } catch (err) {
-      console.error('Fehler:', err)
+      showToast('Fehler beim Genehmigen', 'error')
     } finally {
       setActionLoading(false)
     }
   }
 
-  const handleReject = async () => {
-    const reason = prompt('Grund für Ablehnung (optional):')
+  const handleReject = () => {
+    setRejectModalOpen(true)
+  }
+
+  const confirmReject = async () => {
+    setRejectModalOpen(false)
     setActionLoading(true)
     try {
       await fetch(`/api/review/updates/${params.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user', reason })
+        body: JSON.stringify({ actor: 'user', reason: rejectReason || undefined })
       })
+      showToast('Update abgelehnt', 'warning')
+      setRejectReason('')
       router.push('/review')
     } catch (err) {
-      console.error('Fehler:', err)
+      showToast('Fehler beim Ablehnen', 'error')
     } finally {
       setActionLoading(false)
     }
@@ -232,6 +244,20 @@ export default function UpdateDetailPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={rejectModalOpen}
+        title="Update ablehnen"
+        message="Möchten Sie diesen Update-Vorschlag wirklich ablehnen?"
+        confirmLabel="Ablehnen"
+        variant="danger"
+        onConfirm={confirmReject}
+        onCancel={() => { setRejectModalOpen(false); setRejectReason('') }}
+        showReason
+        reason={rejectReason}
+        onReasonChange={setRejectReason}
+        reasonPlaceholder="Grund für Ablehnung (optional)"
+      />
     </div>
   )
 }

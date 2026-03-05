@@ -54,7 +54,7 @@ async def upload_documents(
 
     for file in files:
         # Check file type
-        allowed_extensions = ['.docx', '.doc', '.md', '.markdown', '.csv', '.xlsx', '.xls', '.pdf']
+        allowed_extensions = ['.docx', '.md', '.markdown', '.csv', '.xlsx', '.xls', '.pdf']
         ext = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
         if ext not in allowed_extensions:
             results.append({

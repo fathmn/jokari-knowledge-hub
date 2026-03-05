@@ -29,7 +29,7 @@ def get_parser(file_path: str) -> DocumentParser:
 def get_supported_extensions() -> list[str]:
     """Get list of all supported file extensions."""
     extensions = []
-    for ext in ['.docx', '.doc', '.md', '.markdown', '.csv', '.xlsx', '.xls', '.pdf']:
+    for ext in ['.docx', '.md', '.markdown', '.csv', '.xlsx', '.xls', '.pdf']:
         for parser in _PARSERS:
             if parser.supports(ext):
                 extensions.append(ext)

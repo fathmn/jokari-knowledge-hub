@@ -13,9 +13,6 @@ pgvector==0.2.5
 pydantic==2.6.1
 pydantic-settings==2.1.0
 
-# Celery & Redis
-celery==5.3.6
-redis==5.0.1
 
 # Supabase Storage
 supabase>=2.0.0

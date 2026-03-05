@@ -9,7 +9,7 @@ class DocxParser(DocumentParser):
     """Parser for Microsoft Word documents."""
 
     def supports(self, file_extension: str) -> bool:
-        return file_extension.lower() in ['.docx', '.doc']
+        return file_extension.lower() == '.docx'
 
     def _extract_text_from_xml(self, file_path: str) -> tuple[str, list[str]]:
         """Fallback: Extract text directly from document.xml when python-docx fails."""

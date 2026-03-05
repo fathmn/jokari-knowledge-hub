@@ -104,6 +104,65 @@ def _calculate_relevance(record: Record, search_term: str) -> float:
     return round(score, 2)
 
 
+@router.get("/{record_id}")
+async def get_knowledge_record(
+    record_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get a single approved knowledge record by ID.
+
+    Only APPROVED records are returned.
+    """
+    from uuid import UUID
+    from app.models.attachment import RecordAttachment
+    from app.services.storage import get_storage_service
+
+    try:
+        rid = UUID(record_id)
+    except ValueError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Ungültige Record-ID")
+
+    record = db.query(Record).filter(
+        Record.id == rid,
+        Record.status == RecordStatus.APPROVED
+    ).first()
+
+    if not record:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Record nicht gefunden oder nicht genehmigt")
+
+    # Load evidence
+    evidence = db.query(Evidence).filter(Evidence.record_id == rid).all()
+
+    # Load attachments with URLs
+    attachments = db.query(RecordAttachment).filter(RecordAttachment.record_id == rid).all()
+    storage = get_storage_service()
+    attachment_list = []
+    for att in attachments:
+        attachment_list.append({
+            "id": str(att.id),
+            "filename": att.filename,
+            "file_type": att.file_type,
+            "url": storage.get_file_url(att.file_path),
+        })
+
+    return {
+        "id": str(record.id),
+        "department": record.department.value if hasattr(record.department, 'value') else record.department,
+        "schema_type": record.schema_type,
+        "primary_key": record.primary_key,
+        "data_json": record.data_json,
+        "completeness_score": record.completeness_score,
+        "version": record.version,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+        "evidence": [EvidenceResponse.model_validate(e) for e in evidence],
+        "attachments": attachment_list,
+    }
+
+
 @router.get("/schemas")
 async def list_schemas():
     """List all available schemas with their fields."""

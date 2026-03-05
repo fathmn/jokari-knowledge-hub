@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
 import CompletenessBar from '@/components/CompletenessBar'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/Toast'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -62,7 +64,17 @@ const schemaLabels: { [key: string]: string } = {
   ProductSpec: 'Produktspezifikation',
   FAQ: 'FAQ',
   Objection: 'Einwand',
-  TroubleshootingGuide: 'Fehlerbehebung'
+  TroubleshootingGuide: 'Fehlerbehebung',
+  HowToSteps: 'Anleitung',
+  Persona: 'Persona',
+  PitchScript: 'Pitch-Skript',
+  EmailTemplate: 'E-Mail-Vorlage',
+  CompatibilityMatrix: 'Kompatibilitätsmatrix',
+  SafetyNotes: 'Sicherheitshinweise',
+  MessagingPillars: 'Messaging-Pfeiler',
+  ContentGuidelines: 'Content-Richtlinien',
+  ComplianceNotes: 'Compliance-Hinweise',
+  ClaimsDoDont: 'Werbeaussagen Do/Dont',
 }
 
 export default function DocumentDetailPage() {
@@ -73,6 +85,8 @@ export default function DocumentDetailPage() {
   const [records, setRecords] = useState<RecordData[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'chunks' | 'records'>('records')
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (params.id) {
@@ -114,14 +128,18 @@ export default function DocumentDetailPage() {
     }
   }
 
-  const handleDelete = async () => {
-    if (!confirm('Möchten Sie dieses Dokument wirklich löschen?')) return
+  const handleDelete = () => {
+    setDeleteModalOpen(true)
+  }
 
+  const confirmDelete = async () => {
+    setDeleteModalOpen(false)
     try {
       await fetch(`/api/documents/${params.id}`, { method: 'DELETE' })
+      showToast('Dokument gelöscht', 'success')
       router.push('/dokumente')
     } catch (err) {
-      console.error('Fehler:', err)
+      showToast('Fehler beim Löschen', 'error')
     }
   }
 
@@ -358,6 +376,16 @@ export default function DocumentDetailPage() {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        open={deleteModalOpen}
+        title="Dokument löschen"
+        message="Möchten Sie dieses Dokument und alle zugehörigen Records wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        confirmLabel="Löschen"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModalOpen(false)}
+      />
     </div>
   )
 }

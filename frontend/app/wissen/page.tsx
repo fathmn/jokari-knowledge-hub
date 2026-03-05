@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Package, Filter, ChevronRight, BookOpen, CheckCircle } from 'lucide-react'
 
@@ -49,7 +50,13 @@ const schemaLabels: { [key: string]: string } = {
   HowToSteps: 'Anleitung',
   Persona: 'Persona',
   PitchScript: 'Pitch-Skript',
-  EmailTemplate: 'E-Mail-Vorlage'
+  EmailTemplate: 'E-Mail-Vorlage',
+  CompatibilityMatrix: 'Kompatibilitätsmatrix',
+  SafetyNotes: 'Sicherheitshinweise',
+  MessagingPillars: 'Messaging-Pfeiler',
+  ContentGuidelines: 'Content-Richtlinien',
+  ComplianceNotes: 'Compliance-Hinweise',
+  ClaimsDoDont: 'Werbeaussagen Do/Dont',
 }
 
 const departmentColors: { [key: string]: string } = {
@@ -60,14 +67,30 @@ const departmentColors: { [key: string]: string } = {
   legal: 'bg-red-100 text-red-800'
 }
 
-export default function WissenPage() {
+function WissenContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [data, setData] = useState<RecordListResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [departmentFilter, setDepartmentFilter] = useState('')
-  const [schemaFilter, setSchemaFilter] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [groupByDepartment, setGroupByDepartment] = useState(true)
+
+  const page = Number(searchParams.get('page') || '1')
+  const departmentFilter = searchParams.get('department') || ''
+  const schemaFilter = searchParams.get('schema') || ''
+
+  const updateParams = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value); else params.delete(key)
+    }
+    router.push(`/wissen?${params}`)
+  }
+
+  const setPage = (p: number) => updateParams({ page: String(p) })
+  const setDepartmentFilter = (d: string) => updateParams({ department: d, page: '1' })
+  const setSchemaFilter = (s: string) => updateParams({ schema: s, page: '1' })
 
   useEffect(() => {
     fetchRecords()
@@ -75,6 +98,7 @@ export default function WissenPage() {
 
   const fetchRecords = async () => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -84,11 +108,13 @@ export default function WissenPage() {
       if (departmentFilter) params.append('department', departmentFilter)
       if (schemaFilter) params.append('schema_type', schemaFilter)
 
+      // Use review endpoint with status=approved filter (knowledge/search requires a query param)
       const res = await fetch(`/api/review?${params}`)
+      if (!res.ok) throw new Error('Fehler beim Laden der Wissensdatenbank')
       const json = await res.json()
       setData(json)
     } catch (err) {
-      console.error('Fehler:', err)
+      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
     } finally {
       setLoading(false)
     }
@@ -226,6 +252,13 @@ export default function WissenPage() {
         })}
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="bg-white rounded-xl border border-red-200 bg-red-50 p-4 mb-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
       {/* Content */}
       {loading ? (
         <div className="flex justify-center p-12">
@@ -290,6 +323,14 @@ export default function WissenPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function WissenPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div></div>}>
+      <WissenContent />
+    </Suspense>
   )
 }
 

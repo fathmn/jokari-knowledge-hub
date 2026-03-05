@@ -67,7 +67,17 @@ const schemaLabels: { [key: string]: string } = {
   ProductSpec: 'Produktspezifikation',
   FAQ: 'FAQ',
   Objection: 'Einwand',
-  TroubleshootingGuide: 'Fehlerbehebung'
+  TroubleshootingGuide: 'Fehlerbehebung',
+  HowToSteps: 'Anleitung',
+  Persona: 'Persona',
+  PitchScript: 'Pitch-Skript',
+  EmailTemplate: 'E-Mail-Vorlage',
+  CompatibilityMatrix: 'Kompatibilitätsmatrix',
+  SafetyNotes: 'Sicherheitshinweise',
+  MessagingPillars: 'Messaging-Pfeiler',
+  ContentGuidelines: 'Content-Richtlinien',
+  ComplianceNotes: 'Compliance-Hinweise',
+  ClaimsDoDont: 'Werbeaussagen Do/Dont',
 }
 
 // Field name translations
@@ -110,11 +120,21 @@ export default function WissenDetailPage() {
 
   const fetchRecord = async () => {
     try {
-      const res = await fetch(`/api/review/${params.id}`)
+      // Try knowledge endpoint first (only returns approved records)
+      const res = await fetch(`/api/knowledge/${params.id}`)
+      if (!res.ok) throw new Error('Nicht gefunden')
       const data = await res.json()
       setRecord(data)
     } catch (err) {
-      console.error('Fehler:', err)
+      // Fallback to review endpoint
+      try {
+        const res = await fetch(`/api/review/${params.id}`)
+        if (!res.ok) throw new Error('Nicht gefunden')
+        const data = await res.json()
+        setRecord(data)
+      } catch {
+        // Record truly not found
+      }
     } finally {
       setLoading(false)
     }

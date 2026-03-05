@@ -87,7 +87,7 @@ async def get_record(
 
     # Add URL to each attachment
     for att in attachments:
-        att.url = storage.get_presigned_url(att.file_path)
+        att.url = storage.get_file_url(att.file_path)
     record.attachments = attachments
 
     return RecordResponse.model_validate(record)
@@ -162,6 +162,20 @@ async def update_record(
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record nicht gefunden")
+
+    # Validate data against schema
+    from app.schemas.knowledge.registry import get_schema_registry
+    registry = get_schema_registry()
+    try:
+        schema_cls = registry.get_schema_by_name(record.schema_type)
+        schema_cls.model_validate(update.data_json)
+    except ValueError:
+        pass  # Unknown schema type, skip validation
+    except Exception as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Daten entsprechen nicht dem Schema '{record.schema_type}': {str(e)}"
+        )
 
     # Update data
     record.data_json = update.data_json
@@ -320,7 +334,7 @@ async def upload_attachments(
 
         # Upload to storage
         try:
-            storage.upload_file(file_path, content, file.content_type)
+            stored_path = storage.upload_file(content, file.filename, file.content_type)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Upload fehlgeschlagen: {str(e)}")
 
@@ -329,7 +343,7 @@ async def upload_attachments(
             record_id=record_id,
             filename=file.filename,
             file_type=file.content_type or "application/octet-stream",
-            file_path=file_path,
+            file_path=stored_path,
             file_size=f"{len(content) / 1024:.1f} KB" if len(content) < 1024 * 1024 else f"{len(content) / (1024 * 1024):.1f} MB"
         )
         db.add(attachment)
@@ -365,7 +379,7 @@ async def list_attachments(
 
     result = []
     for att in attachments:
-        url = storage.get_presigned_url(att.file_path)
+        url = storage.get_file_url(att.file_path)
         result.append({
             "id": str(att.id),
             "filename": att.filename,

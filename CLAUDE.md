@@ -34,9 +34,12 @@ frontend/
 │   └── api/               # API Proxies (rewrites zu Backend)
 ├── components/            # Wiederverwendbare UI-Komponenten
 │   ├── Sidebar.tsx        # Navigation (macOS-Style)
+│   ├── ClientLayout.tsx   # Layout-Wrapper mit ToastProvider
 │   ├── DashboardTile.tsx  # Statistik-Kacheln
 │   ├── StatusBadge.tsx    # Status-Anzeige
-│   └── CompletenessBar.tsx # Fortschrittsbalken
+│   ├── CompletenessBar.tsx # Fortschrittsbalken
+│   ├── Toast.tsx          # Toast-Notifications + Provider
+│   └── ConfirmModal.tsx   # Bestaetigungs-Dialog (ersetzt confirm())
 ├── public/
 │   └── logo.svg           # Jokari Logo
 └── tailwind.config.ts     # Tailwind mit Jokari-Farben
@@ -49,8 +52,9 @@ backend/
 │   ├── api/               # REST Endpoints
 │   │   ├── upload.py      # POST /api/upload
 │   │   ├── documents.py   # GET /api/documents
-│   │   ├── review.py      # Review CRUD
-│   │   └── knowledge.py   # Agent-ready Search API
+│   │   ├── review.py      # Review CRUD + Attachments
+│   │   ├── search.py      # Knowledge API (search, detail, schemas, stats)
+│   │   └── dashboard.py   # Dashboard-Statistiken
 │   ├── models/            # SQLAlchemy Models
 │   │   ├── document.py    # Dokument-Entität
 │   │   └── record.py      # Extrahierter Record
@@ -124,6 +128,9 @@ backend/
 
 ### Knowledge (Agent API)
 - `GET /api/knowledge/search?q=...` - Nur APPROVED Records
+- `GET /api/knowledge/{id}` - Einzelner APPROVED Record mit Evidence + Attachments
+- `GET /api/knowledge/schemas` - Alle verfuegbaren Schemas
+- `GET /api/knowledge/stats` - Knowledge-Base Statistiken
 
 ### Dashboard
 - `GET /api/dashboard/stats` - Statistiken
@@ -146,7 +153,7 @@ Strukturierte Extraktion nach Abteilung:
 
 | Abteilung | Schemas |
 |-----------|---------|
-| Sales | TrainingModule, Objection, Persona, PitchScript |
+| Sales | TrainingModule, Objection, Persona, PitchScript, EmailTemplate |
 | Support | FAQ, TroubleshootingGuide, HowToSteps |
 | Product | ProductSpec, CompatibilityMatrix, SafetyNotes |
 | Marketing | MessagingPillars, ContentGuidelines |
@@ -181,23 +188,32 @@ NEXT_PUBLIC_API_URL=https://jokari-knowledge-hub-production.up.railway.app
 ```
 DATABASE_URL=postgresql://...
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_KEY=xxx
+SUPABASE_SERVICE_ROLE_KEY=xxx
 LLM_PROVIDER=stub  # oder "claude"
 ANTHROPIC_API_KEY=sk-ant-...
+CORS_ORIGINS=http://localhost:3000,http://localhost:3002,https://jokari-knowledge-hub.vercel.app
 ```
 
 ## Wichtige Hinweise
 
+### Changelog-Pflicht (HANDOVER.md)
+- **Nach JEDER Aenderung** muss `HANDOVER.md` aktualisiert werden
+- Format: Datum, Autor, Zusammenfassung, betroffene Dateien, Testhinweise
+- Das Dokument dient als Handover zwischen Entwicklern und AI-Agenten
+- Auch kleine Fixes dokumentieren — lieber zu viel als zu wenig
+
 ### Dont's
 - `.env.local` niemals committen
 - Keine Breaking Changes an API ohne Backend-Update
-- Keine neuen Dependencies ohne Begründung
+- Keine neuen Dependencies ohne Begruendung
+- HANDOVER.md nie vergessen nach Aenderungen
 
 ### Do's
 - TypeScript strict mode beachten
 - Tailwind-Klassen statt inline styles
 - Deutsche Labels in UI
 - Englische Variablen/Code
+- HANDOVER.md nach jeder Aenderung aktualisieren
 
 ## Git Workflow
 

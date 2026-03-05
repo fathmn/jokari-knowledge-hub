@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, ChevronRight, RefreshCw } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
@@ -25,11 +26,28 @@ interface DocumentListResponse {
   pages: number
 }
 
-export default function DokumentePage() {
+function DokumenteContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [data, setData] = useState<DocumentListResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [departmentFilter, setDepartmentFilter] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const page = Number(searchParams.get('page') || '1')
+  const departmentFilter = searchParams.get('department') || ''
+
+  const setPage = (p: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', String(p))
+    router.push(`/dokumente?${params}`)
+  }
+
+  const setDepartmentFilter = (dept: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (dept) params.set('department', dept); else params.delete('department')
+    params.set('page', '1')
+    router.push(`/dokumente?${params}`)
+  }
 
   useEffect(() => {
     fetchDocuments()
@@ -37,15 +55,17 @@ export default function DokumentePage() {
 
   const fetchDocuments = async () => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20' })
       if (departmentFilter) params.append('department', departmentFilter)
 
       const res = await fetch(`/api/documents?${params}`)
+      if (!res.ok) throw new Error('Fehler beim Laden der Dokumente')
       const json = await res.json()
       setData(json)
     } catch (err) {
-      console.error('Fehler beim Laden:', err)
+      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
     } finally {
       setLoading(false)
     }
@@ -115,6 +135,13 @@ export default function DokumentePage() {
           ))}
         </select>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="card p-4 border-red-200 bg-red-50 mb-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       {/* Document List */}
       {loading ? (
@@ -244,5 +271,13 @@ export default function DokumentePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function DokumentePage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center"><div className="w-10 h-10 border-4 border-neutral-200 border-t-primary-500 rounded-full animate-spin mx-auto" /></div>}>
+      <DokumenteContent />
+    </Suspense>
   )
 }

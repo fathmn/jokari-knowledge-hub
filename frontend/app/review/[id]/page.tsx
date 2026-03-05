@@ -26,6 +26,8 @@ import {
 } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
 import CompletenessBar from '@/components/CompletenessBar'
+import ConfirmModal from '@/components/ConfirmModal'
+import { useToast } from '@/components/Toast'
 
 interface Evidence {
   id: string
@@ -82,7 +84,17 @@ const schemaLabels: { [key: string]: string } = {
   ProductSpec: 'Produktspezifikation',
   FAQ: 'FAQ',
   Objection: 'Einwand',
-  TroubleshootingGuide: 'Fehlerbehebung'
+  TroubleshootingGuide: 'Fehlerbehebung',
+  HowToSteps: 'Anleitung',
+  Persona: 'Persona',
+  PitchScript: 'Pitch-Skript',
+  EmailTemplate: 'E-Mail-Vorlage',
+  CompatibilityMatrix: 'Kompatibilitätsmatrix',
+  SafetyNotes: 'Sicherheitshinweise',
+  MessagingPillars: 'Messaging-Pfeiler',
+  ContentGuidelines: 'Content-Richtlinien',
+  ComplianceNotes: 'Compliance-Hinweise',
+  ClaimsDoDont: 'Werbeaussagen Do/Dont',
 }
 
 const fieldLabels: { [key: string]: string } = {
@@ -142,6 +154,12 @@ export default function RecordDetailPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [showRawJson, setShowRawJson] = useState(false)
 
+  const { showToast } = useToast()
+  const [rejectModalOpen, setRejectModalOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteAttachmentId, setDeleteAttachmentId] = useState<string | null>(null)
+
   // Inline editing state
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editingValue, setEditingValue] = useState<string>('')
@@ -177,26 +195,33 @@ export default function RecordDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actor: 'user' })
       })
+      showToast('Record erfolgreich genehmigt', 'success')
       fetchRecord()
     } catch (err) {
-      console.error('Fehler:', err)
+      showToast('Fehler beim Genehmigen', 'error')
     } finally {
       setActionLoading(false)
     }
   }
 
   const handleReject = async () => {
-    const reason = prompt('Grund für Ablehnung (optional):')
+    setRejectModalOpen(true)
+  }
+
+  const confirmReject = async () => {
+    setRejectModalOpen(false)
     setActionLoading(true)
     try {
       await fetch(`/api/review/${params.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user', reason })
+        body: JSON.stringify({ actor: 'user', reason: rejectReason || undefined })
       })
+      showToast('Record abgelehnt', 'warning')
+      setRejectReason('')
       fetchRecord()
     } catch (err) {
-      console.error('Fehler:', err)
+      showToast('Fehler beim Ablehnen', 'error')
     } finally {
       setActionLoading(false)
     }
@@ -206,15 +231,21 @@ export default function RecordDetailPage() {
     try {
       const parsed = JSON.parse(editData)
       setActionLoading(true)
-      await fetch(`/api/review/${params.id}`, {
+      const res = await fetch(`/api/review/${params.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data_json: parsed })
       })
-      setEditing(false)
-      fetchRecord()
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.detail || 'Speichern fehlgeschlagen', 'error')
+      } else {
+        showToast('Änderungen gespeichert', 'success')
+        setEditing(false)
+        fetchRecord()
+      }
     } catch (err) {
-      alert('Ungültiges JSON')
+      showToast('Ungültiges JSON', 'error')
     } finally {
       setActionLoading(false)
     }
@@ -285,13 +316,13 @@ export default function RecordDetailPage() {
         body: formData
       })
       if (res.ok) {
+        showToast('Dateien hochgeladen', 'success')
         fetchRecord()
       } else {
-        alert('Fehler beim Hochladen')
+        showToast('Fehler beim Hochladen', 'error')
       }
     } catch (err) {
-      console.error('Upload-Fehler:', err)
-      alert('Fehler beim Hochladen')
+      showToast('Fehler beim Hochladen', 'error')
     }
 
     // Reset input
@@ -302,15 +333,23 @@ export default function RecordDetailPage() {
 
   // Delete attachment
   const deleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Datei wirklich löschen?')) return
+    setDeleteAttachmentId(attachmentId)
+    setDeleteModalOpen(true)
+  }
+
+  const confirmDeleteAttachment = async () => {
+    if (!deleteAttachmentId) return
+    setDeleteModalOpen(false)
     try {
-      await fetch(`/api/review/${params.id}/attachments/${attachmentId}`, {
+      await fetch(`/api/review/${params.id}/attachments/${deleteAttachmentId}`, {
         method: 'DELETE'
       })
+      showToast('Anhang gelöscht', 'success')
       fetchRecord()
     } catch (err) {
-      console.error('Lösch-Fehler:', err)
+      showToast('Fehler beim Löschen', 'error')
     }
+    setDeleteAttachmentId(null)
   }
 
   if (loading) {
@@ -390,6 +429,25 @@ export default function RecordDetailPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Mobile Quick Info */}
+      <div className="lg:hidden flex items-center gap-4 mb-4 p-4 bg-white rounded-xl border border-gray-200">
+        <div className="flex-1">
+          <p className="text-xs text-gray-500 mb-1">Vollständigkeit</p>
+          <div className="flex items-center gap-2">
+            <CompletenessBar score={record.completeness_score} size="sm" />
+            <span className="text-sm font-semibold">{Math.round(record.completeness_score * 100)}%</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500 mb-1">Belege</p>
+          <span className="text-sm font-semibold">{record.evidence_items?.length || 0}</span>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500 mb-1">Version</p>
+          <span className="text-sm font-semibold">{record.version}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -908,6 +966,32 @@ export default function RecordDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Reject Modal */}
+      <ConfirmModal
+        open={rejectModalOpen}
+        title="Record ablehnen"
+        message="Möchten Sie diesen Record wirklich ablehnen?"
+        confirmLabel="Ablehnen"
+        variant="danger"
+        onConfirm={confirmReject}
+        onCancel={() => { setRejectModalOpen(false); setRejectReason('') }}
+        showReason
+        reason={rejectReason}
+        onReasonChange={setRejectReason}
+        reasonPlaceholder="Grund für Ablehnung (optional)"
+      />
+
+      {/* Delete Attachment Modal */}
+      <ConfirmModal
+        open={deleteModalOpen}
+        title="Anhang löschen"
+        message="Möchten Sie diesen Anhang wirklich löschen?"
+        confirmLabel="Löschen"
+        variant="danger"
+        onConfirm={confirmDeleteAttachment}
+        onCancel={() => { setDeleteModalOpen(false); setDeleteAttachmentId(null) }}
+      />
     </div>
   )
 }

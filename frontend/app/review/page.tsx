@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, RefreshCw, Package, FileText } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
@@ -30,12 +31,28 @@ interface RecordListResponse {
   pages: number
 }
 
-export default function ReviewPage() {
+function ReviewContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [data, setData] = useState<RecordListResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [departmentFilter, setDepartmentFilter] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const page = Number(searchParams.get('page') || '1')
+  const statusFilter = searchParams.get('status') || ''
+  const departmentFilter = searchParams.get('department') || ''
+
+  const updateParams = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value); else params.delete(key)
+    }
+    router.push(`/review?${params}`)
+  }
+
+  const setPage = (p: number) => updateParams({ page: String(p) })
+  const setStatusFilter = (s: string) => updateParams({ status: s, page: '1' })
+  const setDepartmentFilter = (d: string) => updateParams({ department: d, page: '1' })
 
   useEffect(() => {
     fetchRecords()
@@ -43,6 +60,7 @@ export default function ReviewPage() {
 
   const fetchRecords = async () => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -52,10 +70,11 @@ export default function ReviewPage() {
       if (departmentFilter) params.append('department', departmentFilter)
 
       const res = await fetch(`/api/review?${params}`)
+      if (!res.ok) throw new Error('Fehler beim Laden der Records')
       const json = await res.json()
       setData(json)
     } catch (err) {
-      console.error('Fehler:', err)
+      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
     } finally {
       setLoading(false)
     }
@@ -74,7 +93,17 @@ export default function ReviewPage() {
     ProductSpec: 'Produktspezifikation',
     FAQ: 'FAQ',
     Objection: 'Einwand',
-    TroubleshootingGuide: 'Fehlerbehebung'
+    TroubleshootingGuide: 'Fehlerbehebung',
+    HowToSteps: 'Anleitung',
+    Persona: 'Persona',
+    PitchScript: 'Pitch-Skript',
+    EmailTemplate: 'E-Mail-Vorlage',
+    CompatibilityMatrix: 'Kompatibilitätsmatrix',
+    SafetyNotes: 'Sicherheitshinweise',
+    MessagingPillars: 'Messaging-Pfeiler',
+    ContentGuidelines: 'Content-Richtlinien',
+    ComplianceNotes: 'Compliance-Hinweise',
+    ClaimsDoDont: 'Werbeaussagen Do/Dont',
   }
 
   const getDisplayTitle = (record: RecordData): string => {
@@ -145,6 +174,13 @@ export default function ReviewPage() {
           ))}
         </select>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="card p-4 border-red-200 bg-red-50 mb-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       {/* Record Cards */}
       {loading ? (
@@ -275,5 +311,13 @@ export default function ReviewPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center"><div className="w-10 h-10 border-4 border-neutral-200 border-t-primary-500 rounded-full animate-spin mx-auto" /></div>}>
+      <ReviewContent />
+    </Suspense>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { FileText, Clock, CheckCircle, XCircle, AlertTriangle, TrendingUp } from 'lucide-react'
 import DashboardTile from '@/components/DashboardTile'
 import CompletenessBar from '@/components/CompletenessBar'
@@ -219,7 +220,11 @@ export default function Dashboard() {
                           {record.schema_type}
                         </code>
                       </td>
-                      <td className="py-3 px-4 text-sm text-neutral-600">{record.primary_key}</td>
+                      <td className="py-3 px-4 text-sm text-neutral-600">
+                        <Link href={`/review/${record.record_id}`} className="hover:text-primary-600 hover:underline">
+                          {record.primary_key}
+                        </Link>
+                      </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                           {record.age_months} Monate

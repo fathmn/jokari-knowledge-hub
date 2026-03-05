@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, X, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 interface DocTypes {
   [department: string]: string[]
@@ -17,6 +18,7 @@ interface UploadResult {
 }
 
 export default function UploadPage() {
+  const { showToast } = useToast()
   const [files, setFiles] = useState<File[]>([])
   const [docTypes, setDocTypes] = useState<DocTypes>({})
   const [department, setDepartment] = useState('')
@@ -26,6 +28,7 @@ export default function UploadPage() {
   const [confidentiality, setConfidentiality] = useState('internal')
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<UploadResult[]>([])
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDocTypes()
@@ -49,7 +52,6 @@ export default function UploadPage() {
     onDrop,
     accept: {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/msword': ['.doc'],
       'text/markdown': ['.md'],
       'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
@@ -63,7 +65,15 @@ export default function UploadPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (files.length === 0 || !department || !docType || !versionDate || !owner) {
+    setValidationError(null)
+    const missing: string[] = []
+    if (files.length === 0) missing.push('Dateien')
+    if (!department) missing.push('Abteilung')
+    if (!docType) missing.push('Dokumenttyp')
+    if (!versionDate) missing.push('Versionsdatum')
+    if (!owner) missing.push('Verantwortlich')
+    if (missing.length > 0) {
+      setValidationError(`Bitte füllen Sie folgende Pflichtfelder aus: ${missing.join(', ')}`)
       return
     }
 
@@ -87,9 +97,13 @@ export default function UploadPage() {
       setResults(data.results || [])
       if (data.uploaded > 0) {
         setFiles([])
+        showToast(`${data.uploaded} Dokument(e) erfolgreich hochgeladen`, 'success')
+      }
+      if (data.failed > 0) {
+        showToast(`${data.failed} Dokument(e) fehlgeschlagen`, 'error')
       }
     } catch (err) {
-      console.error('Upload-Fehler:', err)
+      showToast('Upload fehlgeschlagen', 'error')
     } finally {
       setUploading(false)
     }
@@ -309,6 +323,14 @@ export default function UploadPage() {
               </div>
             </div>
           </div>
+
+          {/* Validation Error */}
+          {validationError && (
+            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{validationError}</p>
+            </div>
+          )}
 
           {/* Submit Button */}
           <button

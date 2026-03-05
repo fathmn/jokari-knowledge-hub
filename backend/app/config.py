@@ -6,9 +6,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://jokari:jokari_secret@localhost:5432/knowledge_hub"
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
-
     # Supabase Storage
     supabase_url: str = ""
     supabase_service_role_key: str = ""
@@ -17,6 +14,9 @@ class Settings(BaseSettings):
     # LLM
     anthropic_api_key: str = ""
     llm_provider: str = "stub"  # stub | claude
+
+    # CORS
+    cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,https://jokari-knowledge-hub.vercel.app"
 
     # App
     debug: bool = True
