@@ -5,7 +5,7 @@ This bypasses email confirmation entirely by using the service_role_key.
 
 import httpx
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.config import get_settings
 
@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 class CreateUserRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     role: str = "admin"
 
