@@ -50,3 +50,4 @@ angebot.md
 angebot_generator.py
 frontend/.env.local
 ~$*.docx
+.vercel
