@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from app.api import api_router
 from app.config import get_settings
 
+settings = get_settings()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    settings = get_settings()
     print(f"Starting Jokari Knowledge Hub API (debug={settings.debug})")
     yield
     # Shutdown
@@ -19,11 +20,13 @@ app = FastAPI(
     title="Jokari Knowledge Hub",
     description="Interne Wissensmanagement-Plattform für Jokari",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
 )
 
 # CORS configuration
-settings = get_settings()
 cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,

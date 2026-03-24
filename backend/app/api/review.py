@@ -12,6 +12,7 @@ from app.models.audit_log import AuditLog
 from app.models.attachment import RecordAttachment
 from app.schemas.record import RecordResponse, RecordListResponse, RecordUpdate, EvidenceResponse
 from app.schemas.review import ReviewAction, ProposedUpdateResponse
+from app.auth import AuthenticatedUser, get_current_user, user_identifier
 
 router = APIRouter()
 
@@ -97,7 +98,8 @@ async def get_record(
 async def approve_record(
     record_id: UUID,
     action: ReviewAction,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Approve a record."""
     record = db.query(Record).filter(Record.id == record_id).first()
@@ -115,7 +117,7 @@ async def approve_record(
         action="approve",
         entity_type="Record",
         entity_id=record.id,
-        actor=action.actor,
+        actor=user_identifier(current_user),
         details_json={"reason": action.reason} if action.reason else None
     )
     db.add(audit)
@@ -128,7 +130,8 @@ async def approve_record(
 async def reject_record(
     record_id: UUID,
     action: ReviewAction,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Reject a record."""
     record = db.query(Record).filter(Record.id == record_id).first()
@@ -143,7 +146,7 @@ async def reject_record(
         action="reject",
         entity_type="Record",
         entity_id=record.id,
-        actor=action.actor,
+        actor=user_identifier(current_user),
         details_json={"reason": action.reason} if action.reason else None
     )
     db.add(audit)
@@ -156,7 +159,8 @@ async def reject_record(
 async def update_record(
     record_id: UUID,
     update: RecordUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Manually edit a record's data."""
     record = db.query(Record).filter(Record.id == record_id).first()
@@ -194,7 +198,7 @@ async def update_record(
         action="edit",
         entity_type="Record",
         entity_id=record.id,
-        actor="user",
+        actor=user_identifier(current_user),
         details_json={"updated_fields": list(update.data_json.keys())}
     )
     db.add(audit)
@@ -245,7 +249,8 @@ async def get_proposed_update(
 async def approve_update(
     update_id: UUID,
     action: ReviewAction,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Approve a proposed update."""
     from app.services.merge import MergeService
@@ -258,14 +263,15 @@ async def approve_update(
         raise HTTPException(status_code=400, detail="Update ist nicht ausstehend")
 
     merge_service = MergeService()
-    merge_service.apply_update(db, update, action.actor)
+    actor = user_identifier(current_user)
+    merge_service.apply_update(db, update, actor)
 
     # Audit log
     audit = AuditLog(
         action="approve_update",
         entity_type="ProposedUpdate",
         entity_id=update.id,
-        actor=action.actor,
+        actor=actor,
         details_json={"record_id": str(update.record_id)}
     )
     db.add(audit)
@@ -278,7 +284,8 @@ async def approve_update(
 async def reject_update(
     update_id: UUID,
     action: ReviewAction,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Reject a proposed update."""
     from app.services.merge import MergeService
@@ -291,14 +298,15 @@ async def reject_update(
         raise HTTPException(status_code=400, detail="Update ist nicht ausstehend")
 
     merge_service = MergeService()
-    merge_service.reject_update(db, update, action.actor)
+    actor = user_identifier(current_user)
+    merge_service.reject_update(db, update, actor)
 
     # Audit log
     audit = AuditLog(
         action="reject_update",
         entity_type="ProposedUpdate",
         entity_id=update.id,
-        actor=action.actor,
+        actor=actor,
         details_json={"record_id": str(update.record_id), "reason": action.reason}
     )
     db.add(audit)

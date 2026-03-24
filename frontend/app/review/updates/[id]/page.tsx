@@ -55,7 +55,7 @@ export default function UpdateDetailPage() {
       await fetch(`/api/review/updates/${params.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user' })
+        body: JSON.stringify({})
       })
       showToast('Update genehmigt und angewendet', 'success')
       router.push('/review')
@@ -77,7 +77,7 @@ export default function UpdateDetailPage() {
       await fetch(`/api/review/updates/${params.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user', reason: rejectReason || undefined })
+        body: JSON.stringify({ reason: rejectReason || undefined })
       })
       showToast('Update abgelehnt', 'warning')
       setRejectReason('')

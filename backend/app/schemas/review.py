@@ -7,7 +7,6 @@ from app.models.proposed_update import UpdateStatus
 
 class ReviewAction(BaseModel):
     reason: Optional[str] = None
-    actor: str = "user"
 
 
 class ProposedUpdateResponse(BaseModel):

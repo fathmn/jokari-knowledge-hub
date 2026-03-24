@@ -5,8 +5,10 @@ from uuid import UUID
 from typing import Optional
 from app.database import get_db
 from app.models.document import Document, Department, DocumentStatus
+from app.models.audit_log import AuditLog
 from app.models.chunk import Chunk
 from app.models.record import Record
+from app.auth import AuthenticatedUser, require_admin, user_identifier
 from app.schemas.document import (
     DocumentResponse,
     DocumentListResponse,
@@ -152,7 +154,8 @@ async def get_document_records(
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(require_admin),
 ):
     """Delete a document and all associated data."""
     document = db.query(Document).filter(Document.id == document_id).first()
@@ -166,6 +169,15 @@ async def delete_document(
         storage.delete_file(document.file_path)
     except Exception:
         pass  # Ignore storage errors
+
+    audit = AuditLog(
+        action="delete_document",
+        entity_type="Document",
+        entity_id=document.id,
+        actor=user_identifier(current_user),
+        details_json={"filename": document.filename},
+    )
+    db.add(audit)
 
     # Delete from database (cascades to chunks, records, etc.)
     db.delete(document)

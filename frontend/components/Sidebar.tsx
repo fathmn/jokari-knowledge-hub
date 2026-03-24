@@ -11,9 +11,11 @@ import {
   Search,
   BookOpen,
   X,
-  GitPullRequest
+  GitPullRequest,
+  LogOut
 } from 'lucide-react'
 import clsx from 'clsx'
+import { useAuth } from './AuthProvider'
 
 const favoriten = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -41,6 +43,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const { user, signOut } = useAuth()
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: any } }) => {
     const isActive = pathname === item.href ||
@@ -153,7 +156,27 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 space-y-3">
+          {user && (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                Angemeldet
+              </div>
+              <div className="mt-1 text-[13px] font-medium text-neutral-700 break-all">
+                {user.email}
+              </div>
+              <button
+                onClick={() => {
+                  void signOut()
+                  onClose?.()
+                }}
+                className="mt-3 inline-flex items-center gap-2 text-[13px] font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Abmelden</span>
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between text-[11px] text-neutral-400">
             <span>v1.0</span>
             <div className="flex items-center gap-1.5">

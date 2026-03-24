@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, X, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
 import { useToast } from '@/components/Toast'
 
 interface DocTypes {
@@ -19,6 +20,7 @@ interface UploadResult {
 
 export default function UploadPage() {
   const { showToast } = useToast()
+  const { user } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [docTypes, setDocTypes] = useState<DocTypes>({})
   const [department, setDepartment] = useState('')
@@ -33,6 +35,12 @@ export default function UploadPage() {
   useEffect(() => {
     fetchDocTypes()
   }, [])
+
+  useEffect(() => {
+    if (!owner && user?.email) {
+      setOwner(user.email)
+    }
+  }, [owner, user?.email])
 
   const fetchDocTypes = async () => {
     try {

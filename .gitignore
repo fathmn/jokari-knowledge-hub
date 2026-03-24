@@ -13,6 +13,7 @@ build/
 
 # Node
 node_modules/
+.vercel/
 .next/
 .npm
 *.tsbuildinfo
@@ -40,3 +41,12 @@ minio_data/
 *.tmp
 *.temp
 .cache/
+
+# Local-only project artifacts
+.claude/
+Angebot_Jokari_v2.docx
+Angebot_Jokari_v3.docx
+angebot.md
+angebot_generator.py
+frontend/.env.local
+~$*.docx

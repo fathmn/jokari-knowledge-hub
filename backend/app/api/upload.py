@@ -9,6 +9,7 @@ from app.models.audit_log import AuditLog
 from app.services.storage import get_storage_service
 from app.services.ingestion import IngestionService
 from app.schemas.knowledge.registry import get_schema_registry
+from app.auth import AuthenticatedUser, get_current_user, user_identifier
 
 router = APIRouter()
 
@@ -34,7 +35,8 @@ async def upload_documents(
     version_date: datetime = Form(...),
     owner: str = Form(...),
     confidentiality: Confidentiality = Form(default=Confidentiality.INTERNAL),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Upload multiple documents for processing.
@@ -51,6 +53,7 @@ async def upload_documents(
 
     storage = get_storage_service()
     results = []
+    actor = user_identifier(current_user)
 
     for file in files:
         # Check file type
@@ -94,8 +97,12 @@ async def upload_documents(
                 action="upload",
                 entity_type="Document",
                 entity_id=document.id,
-                actor=owner,
-                details_json={"filename": file.filename, "department": department.value}
+                actor=actor,
+                details_json={
+                    "department": department.value,
+                    "filename": file.filename,
+                    "owner": owner,
+                }
             )
             db.add(audit)
             db.commit()

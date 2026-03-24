@@ -2,12 +2,22 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { ToastProvider } from './Toast'
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const pathname = usePathname()
+
+  if (pathname === '/login') {
+    return (
+      <ToastProvider>
+        <main className="min-h-screen">{children}</main>
+      </ToastProvider>
+    )
+  }
 
   return (
     <ToastProvider>

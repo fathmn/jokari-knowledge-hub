@@ -6,6 +6,68 @@
 
 ---
 
+## 2026-03-24 — Supabase Auth + Produktions-Migrationsvorbereitung (Codex)
+
+**Kontext:** Sicherheits- und Hosting-Härtung mit neuem Supabase-Projekt. Ziel ist ein konsistenter Stack mit Supabase fuer Daten/Auth/Storage, waehrend der bestehende Python-Compute kurzfristig auf Railway verbleibt. Frontend und Backend wurden lokal auf Supabase Auth umgestellt und fuer den Produktionswechsel vorbereitet.
+
+### Auth & Security
+
+#### 1.1 Supabase Auth im Frontend integriert
+- **Neu:** Login-Seite mit Magic-Link-Flow, Callback-Route, Session-Middleware und globaler Auth-Provider fuer geschuetzte Seiten.
+- **Effekt:** Seiten und API-Aufrufe werden nur noch mit aktiver Supabase-Session geladen; Bearer-Token werden automatisch an `/api/*` weitergereicht.
+- **Dateien:** `frontend/app/login/page.tsx`, `frontend/app/auth/callback/route.ts`, `frontend/components/AuthProvider.tsx`, `frontend/middleware.ts`, `frontend/utils/supabase/*`, `frontend/app/layout.tsx`, `frontend/components/ClientLayout.tsx`, `frontend/components/Sidebar.tsx`
+
+#### 1.2 Backend-API gegen Supabase Sessions abgesichert
+- **Neu:** Zentrale Token-Validierung ueber Supabase, Rollenmodell (`viewer`, `reviewer`, `admin`) und Router-Schutz per Dependency.
+- **Fix:** Spoofbare `actor`-Felder aus Review-/Approve-Flows entfernt; Audit-Logs verwenden jetzt den authentifizierten Benutzer.
+- **Dateien:** `backend/app/auth.py`, `backend/app/api/__init__.py`, `backend/app/api/upload.py`, `backend/app/api/review.py`, `backend/app/api/documents.py`, `backend/app/schemas/review.py`
+
+#### 1.3 Produktions-Defaults gehaertet
+- **Fix:** `DEBUG` standardmaessig auf `false`; FastAPI-Doku-Endpunkte werden nur noch im Debug-Modus exponiert.
+- **Dateien:** `backend/app/config.py`, `backend/app/main.py`
+
+### Supabase-Projekt & Envs
+
+#### 2.1 Neues Supabase-Projekt vorbereitet
+- **Neu:** Repo mit Supabase CLI initialisiert und auf neues Projekt verlinkt; privater Bucket `documents` wurde erstellt.
+- **Dateien:** `supabase/config.toml`, `supabase/.gitignore`, `supabase/.temp/*`
+
+#### 2.2 Env-Beispiele auf neuen Stack aktualisiert
+- **Fix:** Frontend- und Backend-Env-Beispiele zeigen jetzt auf das neue Supabase-Projekt und enthalten die benoetigten Auth-Variablen.
+- **Dateien:** `frontend/.env.example`, `backend/.env.example`
+
+#### 2.3 Lokale Git-Hygiene verbessert
+- **Fix:** Lokale Angebots-/Hilfsdateien sowie `frontend/.env.local` werden jetzt ignoriert.
+- **Datei:** `.gitignore`
+
+### Frontend/Dependencies
+
+#### 3.1 Next.js und Supabase-Dependencies angehoben
+- **Fix:** Next.js auf `14.2.35` angehoben; Supabase SSR/JS Client hinzugefuegt.
+- **Dateien:** `frontend/package.json`, `frontend/package-lock.json`
+
+#### 3.2 Kleines API-Interface bereinigt
+- **Fix:** Veraltete `actor`-Parameter im Frontend-API-Helper entfernt, passend zur neuen serverseitigen Audit-Quelle.
+- **Datei:** `frontend/lib/api.ts`
+
+### Deployment-Status
+
+#### 4.1 Production-Umgebungen vorbereitet
+- **Status:** Railway- und Vercel-Variablen wurden auf das neue Supabase-Projekt umgestellt.
+- **Hinweis:** Railway CLI-Deploy ueber Archiv scheiterte zunaechst an einer doppelten Root-Directory-Konfiguration (`/backend` + `--path-as-root`). Git-basierter Deploy-Pfad bleibt die robusteste Route fuer das bestehende Service-Setup.
+
+### Verifizierung
+- Frontend-Build: `cd frontend && npm run build` erfolgreich
+- Backend-Syntax: `python3 -m compileall backend/app` erfolgreich
+- Vercel-Env-Check: neue `NEXT_PUBLIC_SUPABASE_*` Variablen vorhanden
+- Railway-Deployment-Analyse: Fehlerursache fuer den missglueckten CLI-Upload identifiziert (`Could not find root directory: /backend`)
+
+### Offene Punkte
+- Erste produktive Supabase-Benutzer anlegen und Rollen setzen
+- `disable_signup=true` aktivieren, sobald Admin-Nutzer angelegt sind
+- Frontend/Backend final ueber Git deployen und Live-Smoke-Tests fahren
+- Optionaler Phase-2-Umbau: Python-Backend von Railway auf Vercel migrieren
+
 ## 2026-03-05 — Bugfixes & Verbesserungen (Claude Opus 4.6)
 
 **Kontext:** Tiefenanalyse des gesamten Projekts identifizierte 30+ Issues. Claude und Codex CLI haben die Bugs unabhaengig verifiziert. Dieser Eintrag dokumentiert alle Fixes.

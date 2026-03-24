@@ -193,7 +193,7 @@ export default function RecordDetailPage() {
       await fetch(`/api/review/${params.id}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user' })
+        body: JSON.stringify({})
       })
       showToast('Record erfolgreich genehmigt', 'success')
       fetchRecord()
@@ -215,7 +215,7 @@ export default function RecordDetailPage() {
       await fetch(`/api/review/${params.id}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: 'user', reason: rejectReason || undefined })
+        body: JSON.stringify({ reason: rejectReason || undefined })
       })
       showToast('Record abgelehnt', 'warning')
       setRejectReason('')

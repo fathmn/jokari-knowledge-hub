@@ -37,15 +37,15 @@ export const api = {
   getReviewQueue: (params?: URLSearchParams) =>
     fetchApi(`/review${params ? `?${params}` : ''}`),
   getRecord: (id: string) => fetchApi(`/review/${id}`),
-  approveRecord: (id: string, actor: string) =>
+  approveRecord: (id: string) =>
     fetchApi(`/review/${id}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ actor }),
+      body: JSON.stringify({}),
     }),
-  rejectRecord: (id: string, actor: string, reason?: string) =>
+  rejectRecord: (id: string, reason?: string) =>
     fetchApi(`/review/${id}/reject`, {
       method: 'POST',
-      body: JSON.stringify({ actor, reason }),
+      body: JSON.stringify({ reason }),
     }),
   updateRecord: (id: string, data: any) =>
     fetchApi(`/review/${id}`, {

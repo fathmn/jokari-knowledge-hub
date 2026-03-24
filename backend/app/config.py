@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,https://jokari-knowledge-hub.vercel.app"
 
     # App
-    debug: bool = True
+    debug: bool = False
     secret_key: str = "dev-secret-key-change-in-production"
 
     class Config:
