@@ -40,10 +40,17 @@ function SignUpContent() {
         body: JSON.stringify({ email, password, role }),
       })
 
-      const data = await res.json()
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        setError(`Backend hat Status ${res.status} ohne JSON zurueckgegeben.`)
+        setSubmitting(false)
+        return
+      }
 
       if (!res.ok) {
-        setError(data.detail || 'Fehler beim Erstellen des Accounts.')
+        setError(data.detail || `Fehler (${res.status}) beim Erstellen des Accounts.`)
         setSubmitting(false)
         return
       }
