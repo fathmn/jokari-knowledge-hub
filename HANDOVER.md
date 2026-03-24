@@ -6,6 +6,98 @@
 
 ---
 
+## 2026-03-24 — Password-Login und Admin-User-Setup (Claude Opus 4.6)
+
+**Kontext:** Der Magic-Link-Login war durch das Supabase-Maillimit (2 Mails/Stunde ohne eigenen SMTP-Server) blockiert. Codex hatte mehrere Workarounds versucht (Hash-Session-Uebernahme, OTP-Verification, Code-Forwarding), das Grundproblem blieb aber bestehen: Ohne E-Mail-Zustellung kein Login.
+
+### Loesung: Password-Login + Admin-API Setup
+
+#### 1.1 Password-Login als primaere Methode
+- **Neu:** Login-Seite hat jetzt zwei Modi: "Passwort" (Standard) und "Magic Link" (Alternative)
+- **Effekt:** Password-Login braucht keinen E-Mail-Versand, umgeht das Supabase-Maillimit komplett
+- **Datei:** `frontend/app/login/page.tsx`
+
+#### 1.2 Sign-Up-Seite mit Backend-Admin-API
+- **Neu:** `/signup` Seite erstellt neue User ueber Backend-Endpoint `POST /api/auth/create-user`
+- **Effekt:** Der Backend-Endpoint nutzt den Supabase `service_role_key` um User mit `email_confirm: true` anzulegen — keine Bestaetigungsmail noetig
+- **Dateien:** `frontend/app/signup/page.tsx` (neu), `backend/app/api/auth_setup.py` (neu), `backend/app/api/__init__.py`
+
+#### 1.3 Middleware und AuthProvider aktualisiert
+- **Fix:** `/signup` als oeffentliche Route in Middleware und AuthProvider eingetragen
+- **Dateien:** `frontend/middleware.ts`, `frontend/components/AuthProvider.tsx`
+
+#### 1.4 Hash-Session und Code-Forwarding beibehalten
+- Die von Codex eingebauten Fallbacks (Hash-basierte Sessions, Auth-Code-Forwarding) wurden aufgeraeumt aber beibehalten — sie greifen wenn der Magic-Link-Weg doch funktioniert
+
+### Verifizierung
+- Frontend-Build: `cd frontend && npm run build` erfolgreich (0 Fehler)
+- Backend-Syntax: `python3 -m py_compile app/api/auth_setup.py` erfolgreich
+
+### Anleitung zum Einloggen
+1. Auf `/signup` gehen und E-Mail + Passwort + Rolle (Admin) waehlen
+2. Account wird sofort erstellt und bestaetigt (kein Mail noetig)
+3. Auf `/login` gehen und mit Passwort anmelden
+
+### Hinweis
+- Der `/api/auth/create-user` Endpoint ist ungeschuetzt — nach dem Erstellen der Admin-User sollte `enable_signup` in Supabase auf `false` gesetzt werden
+- Fuer langfristigen Magic-Link-Support: Eigenen SMTP-Server (z.B. Resend, SendGrid) in Supabase konfigurieren
+
+---
+
+## 2026-03-24 — JOKARI Brand-Assets und UI-Branding integriert (Codex)
+
+**Kontext:** Offizielle JOKARI Brand-Assets wurden fuer Frontend-Metadaten, Favicons und die sichtbaren Shell-/Auth-Flaechen uebernommen. Die Hero-/Backdrop-Bilder wurden bewusst nicht integriert.
+
+### Branding-Integration
+
+#### 0.1 Browser- und App-Icons hinterlegt
+- **Neu:** Offizielle Favicons und Apple Touch Icon aus `jokari.de` lokal ins Frontend uebernommen.
+- **Effekt:** Keine `favicon.ico`-404 mehr; Browser, Homescreen und Manifest verwenden jetzt die offiziellen JOKARI-Assets.
+- **Dateien:** `frontend/public/favicon.ico`, `frontend/public/favicon.svg`, `frontend/public/favicon-96x96.png`, `frontend/public/apple-touch-icon.png`, `frontend/public/site.webmanifest`
+
+#### 0.2 Next-Metadaten auf Brand-Assets verdrahtet
+- **Neu:** `layout.tsx` exportiert jetzt Icon-, Manifest- und Theme-Color-Metadaten.
+- **Effekt:** Vercel/Next liefern fuer Browser-Tabs, PWA-Metadaten und UI-Chrome jetzt konsistente Brand-Informationen aus.
+- **Datei:** `frontend/app/layout.tsx`
+
+#### 0.3 Globales UI-Toning auf JOKARI angepasst
+- **Fix:** App-Hintergrund, Fokuszustand, Scrollbars, Karten und Button-Stile wurden von neutralem Default auf das gelb-blau-weisse JOKARI-Schema gezogen.
+- **Datei:** `frontend/app/globals.css`
+
+#### 0.4 Shell und Login sichtbar gebrandet
+- **Fix:** Sidebar, mobiler Header, Loading-State und Login-/Callback-Flows verwenden jetzt die JOKARI-Farben und den offiziellen visuellen Ton statt neutral-schwarzer Defaults.
+- **Dateien:** `frontend/components/ClientLayout.tsx`, `frontend/components/Sidebar.tsx`, `frontend/components/AuthProvider.tsx`, `frontend/app/login/page.tsx`
+
+### Verifizierung
+- Frontend-Build: `cd frontend && npm run build` erfolgreich
+- Asset-Check: Favicons, Apple Touch Icon und Manifest lokal vorhanden
+
+## 2026-03-24 — Production-Cutover auf Supabase-Pooler abgeschlossen (Codex)
+
+**Kontext:** Der neue Supabase-Stack war vorbereitet, aber Railway verwendete noch den direkten Datenbank-Host. Das scheiterte in Railway zur Laufzeit an einer IPv6-only-Verbindung. Der Produktions-Fix bestand darin, Railway auf den Supabase Session Pooler umzustellen und den Live-Stack danach zu verifizieren.
+
+### Produktions-Fix
+
+#### 0.1 Railway auf Supabase Pooler umgestellt
+- **Problem:** `db.<project-ref>.supabase.co:5432` war aus Railway heraus nicht erreichbar (`Network is unreachable` auf IPv6-Adresse).
+- **Fix:** `DATABASE_URL` in Railway auf den von der Supabase CLI aufgelösten Session-Pooler umgestellt (`aws-1-eu-central-1.pooler.supabase.com:5432`) und mit SSL neu gesetzt.
+- **Hinweis:** Für den laufenden FastAPI-Service ist dieser Modus der richtige kurzfristige Produktionspfad; der Direct Host bleibt für dieses Setup ungeeignet.
+
+#### 0.2 Railway-Deployment erfolgreich neu gestartet
+- **Status:** Redeploy `d85410fc-0d2d-44f3-b73e-a8a8230412f1` lief erfolgreich durch.
+- **Verifizierung:** `GET /health` auf Railway liefert jetzt wieder `200` mit `{"status":"healthy"}`.
+
+#### 0.3 Vercel-Frontend gegen das neue Backend verifiziert
+- **Status:** `https://jokari-knowledge-hub.vercel.app/login` liefert `200` und das Frontend ist produktiv live.
+- **Hinweis:** Der Rewrite `/api/:path* -> ${NEXT_PUBLIC_API_URL}/api/:path*` ist intakt; ein Test auf `/api/health` ergab erwartungsgemaess `404`, weil der Backend-Healthcheck unter `/health` liegt, nicht unter `/api/health`.
+
+### Architektur-Entscheidung
+
+#### 0.4 Zielbild fuer jetzt festgezogen
+- **Empfehlung:** Kurzfristig `Vercel + Railway + Supabase`.
+- **Begruendung:** Supabase uebernimmt sauber `Postgres + Auth + Storage`; Railway bleibt nur als Compute-Layer fuer den bestehenden Python/FastAPI-Service. Das ist deutlich schneller und risikoaermer als ein sofortiger Laufzeit-Umbau auf Vercel Functions oder Supabase Edge Functions.
+- **Phase 2:** Wenn gewuenscht, kann Railway spaeter entfernt werden, aber das ist ein gezielter Compute-Migrationsschritt, kein einfacher Env-Switch.
+
 ## 2026-03-24 — Supabase Auth + Produktions-Migrationsvorbereitung (Codex)
 
 **Kontext:** Sicherheits- und Hosting-Härtung mit neuem Supabase-Projekt. Ziel ist ein konsistenter Stack mit Supabase fuer Daten/Auth/Storage, waehrend der bestehende Python-Compute kurzfristig auf Railway verbleibt. Frontend und Backend wurden lokal auf Supabase Auth umgestellt und fuer den Produktionswechsel vorbereitet.

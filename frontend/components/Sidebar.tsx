@@ -31,9 +31,9 @@ const wissensbereiche = [
 ]
 
 const tags = [
-  { name: 'Vertrieb', color: 'bg-blue-500' },
-  { name: 'Support', color: 'bg-green-500' },
-  { name: 'Produkt', color: 'bg-purple-500' },
+  { name: 'Vertrieb', color: 'bg-accent-500' },
+  { name: 'Support', color: 'bg-primary-500' },
+  { name: 'Produkt', color: 'bg-accent-300' },
 ]
 
 interface SidebarProps {
@@ -56,13 +56,13 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         className={clsx(
           'flex items-center gap-2.5 px-3 py-2 text-[13px] rounded-lg transition-all',
           isActive
-            ? 'bg-neutral-900 text-white shadow-sm'
-            : 'text-neutral-600 hover:bg-neutral-100'
+            ? 'bg-accent-500 text-white shadow-sm'
+            : 'text-accent-500 hover:bg-primary-50 hover:text-accent-700'
         )}
       >
         <item.icon className={clsx(
           'w-[18px] h-[18px]',
-          isActive ? 'text-white' : 'text-neutral-400'
+          isActive ? 'text-white' : 'text-accent-300'
         )} />
         <span className="font-medium">{item.name}</span>
       </Link>
@@ -71,7 +71,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const SectionHeader = ({ children }: { children: React.ReactNode }) => (
     <div className="px-3 pt-5 pb-2">
-      <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+      <span className="text-[11px] font-semibold text-accent-300 uppercase tracking-[0.18em]">
         {children}
       </span>
     </div>
@@ -89,7 +89,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
       {/* Sidebar */}
       <div className={clsx(
-        'flex flex-col bg-white/80 backdrop-blur-2xl shadow-sm',
+        'flex flex-col bg-white/88 backdrop-blur-2xl shadow-soft border-r border-accent-100/70 lg:border lg:border-accent-100/70',
         // Desktop: always visible, static
         'lg:relative lg:w-60 lg:rounded-2xl lg:translate-x-0',
         // Mobile: fixed, slide in/out
@@ -111,8 +111,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {onClose && (
             <button
               onClick={onClose}
-              className="lg:hidden p-2 -mr-2 text-neutral-400 hover:text-neutral-600
-                         hover:bg-neutral-100 rounded-lg transition-colors"
+              className="lg:hidden p-2 -mr-2 text-accent-300 hover:text-accent-600
+                         hover:bg-primary-100 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -145,8 +145,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 key={tag.name}
                 href={`/dokumente?department=${tag.name.toLowerCase()}`}
                 onClick={onClose}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-neutral-600
-                           hover:bg-neutral-100 rounded-lg w-full text-left transition-colors"
+                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-accent-500
+                           hover:bg-primary-50 rounded-lg w-full text-left transition-colors"
               >
                 <span className={clsx('w-2.5 h-2.5 rounded-full', tag.color)} />
                 <span>{tag.name}</span>
@@ -158,11 +158,11 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         {/* Footer */}
         <div className="px-5 py-4 space-y-3">
           {user && (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+            <div className="rounded-xl border border-accent-100 bg-primary-50/50 px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-accent-300">
                 Angemeldet
               </div>
-              <div className="mt-1 text-[13px] font-medium text-neutral-700 break-all">
+              <div className="mt-1 text-[13px] font-medium text-accent-700 break-all">
                 {user.email}
               </div>
               <button
@@ -170,14 +170,14 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                   void signOut()
                   onClose?.()
                 }}
-                className="mt-3 inline-flex items-center gap-2 text-[13px] font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+                className="mt-3 inline-flex items-center gap-2 text-[13px] font-medium text-accent-500 hover:text-accent-700 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
                 <span>Abmelden</span>
               </button>
             </div>
           )}
-          <div className="flex items-center justify-between text-[11px] text-neutral-400">
+          <div className="flex items-center justify-between text-[11px] text-accent-300">
             <span>v1.0</span>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />

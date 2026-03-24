@@ -24,11 +24,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <div className="flex h-screen lg:p-2 lg:gap-2">
         {/* Mobile Header */}
         <div className="fixed top-0 left-0 right-0 z-30 lg:hidden">
-          <div className="flex items-center justify-between h-14 px-4 bg-white/80 backdrop-blur-xl border-b border-neutral-200/60">
+          <div className="flex items-center justify-between h-14 px-4 bg-white/88 backdrop-blur-xl border-b border-accent-100/70 shadow-[0_10px_30px_-24px_rgba(36,56,141,0.35)]">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 -ml-2 text-neutral-600 hover:text-neutral-900
-                         hover:bg-neutral-100 rounded-lg transition-colors"
+              className="p-2 -ml-2 text-accent-500 hover:text-accent-700
+                         hover:bg-primary-100 rounded-lg transition-colors"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -47,7 +47,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-white lg:rounded-2xl lg:shadow-sm pt-14 lg:pt-0">
+        <main className="flex-1 overflow-auto bg-white/94 lg:rounded-2xl lg:border lg:border-accent-100/70 lg:shadow-soft pt-14 lg:pt-0 backdrop-blur-sm">
           {children}
         </main>
       </div>

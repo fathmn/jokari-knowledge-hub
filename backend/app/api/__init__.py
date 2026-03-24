@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from app.api import upload, documents, review, search, dashboard
+from app.api import upload, documents, review, search, dashboard, auth_setup
 from app.auth import get_current_user, require_reviewer
 
 api_router = APIRouter()
@@ -33,4 +33,9 @@ api_router.include_router(
     prefix="/dashboard",
     tags=["Dashboard"],
     dependencies=[Depends(get_current_user)],
+)
+api_router.include_router(
+    auth_setup.router,
+    prefix="/auth",
+    tags=["Auth Setup"],
 )

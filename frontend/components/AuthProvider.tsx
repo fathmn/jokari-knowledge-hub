@@ -21,12 +21,12 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 function AuthLoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-100">
-      <div className="flex flex-col items-center gap-4 rounded-2xl border border-neutral-200 bg-white px-8 py-10 shadow-sm">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" />
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex flex-col items-center gap-4 rounded-3xl border border-accent-100/80 bg-white/95 px-8 py-10 shadow-soft">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-200 border-t-accent-500" />
         <div className="text-center">
-          <p className="text-sm font-medium text-neutral-900">Sitzung wird geladen</p>
-          <p className="mt-1 text-sm text-neutral-500">Authentifizierung wird geprüft</p>
+          <p className="text-sm font-medium text-accent-700">Sitzung wird geladen</p>
+          <p className="mt-1 text-sm text-accent-400">Authentifizierung wird geprüft</p>
         </div>
       </div>
     </div>
@@ -40,12 +40,34 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const isPublicRoute = pathname === '/login'
+  const isPublicRoute = pathname === '/login' || pathname === '/signup'
 
   useEffect(() => {
     let mounted = true
 
     const initialize = async () => {
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash.startsWith('#')
+          ? window.location.hash.slice(1)
+          : window.location.hash
+
+        if (hash) {
+          const hashParams = new URLSearchParams(hash)
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
+
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+
+            const cleanUrl = `${window.location.pathname}${window.location.search}`
+            window.history.replaceState({}, '', cleanUrl)
+          }
+        }
+      }
+
       const { data } = await supabase.auth.getSession()
       if (!mounted) {
         return
