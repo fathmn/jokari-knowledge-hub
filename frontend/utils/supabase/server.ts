@@ -1,10 +1,10 @@
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 type CookieToSet = {
   name: string
   value: string
-  options?: Parameters<ReturnType<typeof cookies>['set']>[2]
+  options?: CookieOptions
 }
 
 function getSupabaseConfig() {
@@ -20,8 +20,8 @@ function getSupabaseConfig() {
   return { publishableKey, url }
 }
 
-export function createSupabaseServerClient() {
-  const cookieStore = cookies()
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies()
   const { publishableKey, url } = getSupabaseConfig()
 
   return createServerClient(url, publishableKey, {
