@@ -54,7 +54,7 @@
 
 #### 4.1 Production-Umgebungen vorbereitet
 - **Status:** Railway- und Vercel-Variablen wurden auf das neue Supabase-Projekt umgestellt.
-- **Hinweis:** Railway CLI-Deploy ueber Archiv scheiterte zunaechst an einer doppelten Root-Directory-Konfiguration (`/backend` + `--path-as-root`). Git-basierter Deploy-Pfad bleibt die robusteste Route fuer das bestehende Service-Setup.
+- **Hinweis:** Railway CLI-Deploy ueber Archiv scheiterte zunaechst an einer doppelten Root-Directory-Konfiguration (`/backend` + `--path-as-root`). Danach zeigte sich, dass Git-Deploys den Monorepo-Root bauen. Fuer reproduzierbare Deploys wurden deshalb `railway.toml` im Repo-Root und `backend/Dockerfile.railway` fuer den Root-basierten Docker-Build hinzugefuegt.
 
 ### Verifizierung
 - Frontend-Build: `cd frontend && npm run build` erfolgreich
