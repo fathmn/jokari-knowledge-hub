@@ -54,13 +54,19 @@
 
 #### 4.1 Production-Umgebungen vorbereitet
 - **Status:** Railway- und Vercel-Variablen wurden auf das neue Supabase-Projekt umgestellt.
-- **Hinweis:** Railway CLI-Deploy ueber Archiv scheiterte zunaechst an einer doppelten Root-Directory-Konfiguration (`/backend` + `--path-as-root`). Danach zeigte sich, dass Git-Deploys den Monorepo-Root bauen. Fuer reproduzierbare Deploys wurden deshalb `railway.toml` im Repo-Root und `backend/Dockerfile.railway` fuer den Root-basierten Docker-Build hinzugefuegt.
+- **Hinweis:** Railway CLI-Deploy ueber Archiv scheiterte zunaechst an einer doppelten Root-Directory-Konfiguration (`/backend` + `--path-as-root`). Der robuste Produktionspfad bleibt der bestehende Git-Deploy mit Railway-Service-Root `/backend`.
+
+#### 4.2 Railway-Runtime-Fix
+- **Problem:** Alembic schlug in Railway beim Start fehl, weil `ConfigParser` das Prozent-Encoding in der neuen Supabase-`DATABASE_URL` als Interpolation interpretierte.
+- **Fix:** `DATABASE_URL` wird in `alembic/env.py` vor `set_main_option()` mit `%%` escaped.
+- **Datei:** `backend/alembic/env.py`
 
 ### Verifizierung
 - Frontend-Build: `cd frontend && npm run build` erfolgreich
 - Backend-Syntax: `python3 -m compileall backend/app` erfolgreich
 - Vercel-Env-Check: neue `NEXT_PUBLIC_SUPABASE_*` Variablen vorhanden
 - Railway-Deployment-Analyse: Fehlerursache fuer den missglueckten CLI-Upload identifiziert (`Could not find root directory: /backend`)
+- Railway-Runtime-Analyse: Fehlerursache fuer den Startcrash identifiziert (`invalid interpolation syntax` in Alembic bei percent-encodeter `DATABASE_URL`)
 
 ### Offene Punkte
 - Erste produktive Supabase-Benutzer anlegen und Rollen setzen
