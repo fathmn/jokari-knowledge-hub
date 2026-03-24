@@ -1,252 +1,400 @@
 # Jokari Knowledge Hub
 
-Interne Wissensmanagement-Plattform für strukturierte Dokumentenverarbeitung mit KI-gestützter Extraktion und Approval-Workflow.
+Interne Wissensmanagement-Plattform für strukturierte Dokumentenverarbeitung, Review-Workflows und agent-ready Wissensdaten.
 
-## Features
+## TL;DR
 
-- **Drag & Drop Upload** - Dokumente hochladen (DOCX, MD, CSV, XLSX, PDF)
-- **Schema-driven Extraktion** - Automatische Strukturierung nach Abteilung/Dokumenttyp
-- **Review-Workflow** - Genehmigungs-Gate für Qualitätssicherung
-- **Evidence Tracking** - Quellenbelege für jedes extrahierte Feld
-- **Merge & Versioning** - Updates für bestehende Records mit Diff-Ansicht
-- **Agent-Ready API** - Nur genehmigte Records für KI-Agenten verfügbar
+Wenn du als Entwickler schnell einsteigen willst, sind das die wichtigsten Punkte:
+
+- Die produktive Hauptdomain ist `https://jokari-knowledge-hub.vercel.app`
+- `cyan` ist nicht mehr relevant und soll nicht mehr verwendet werden
+- Der aktuelle Live-Stack ist:
+  - `Vercel` für das Next.js-Frontend
+  - `Supabase` für Auth, Postgres und Storage
+  - `Railway` nur noch als Compute-Host für das bestehende FastAPI-Backend
+- Das Zielbild ist weiterhin `Vercel + Supabase only`, aber dieser letzte Compute-Migrationsschritt ist noch offen
+- Auth ist produktiv aktiv
+  - offene Registrierung ist deaktiviert
+  - Login läuft aktuell über E-Mail + Passwort
+  - neue Benutzer müssen manuell per Supabase angelegt werden
+- Das Repo ist auf dem aktuellen produktiven Stand
+  - `main` enthält die Auth-Rückkehr aus dem Demo-Modus und das Next.js-Sicherheitsupgrade
+
+## Produktionsstatus
+
+Stand: 24.03.2026
+
+### Live-URLs
+
+- Frontend: `https://jokari-knowledge-hub.vercel.app`
+- Backend: `https://jokari-knowledge-hub-production.up.railway.app`
+- Healthcheck: `https://jokari-knowledge-hub-production.up.railway.app/health`
+
+### Produktive Architektur
+
+```text
+Browser
+  -> Vercel / Next.js Frontend
+    -> /api/* Rewrite
+      -> Railway / FastAPI Backend
+        -> Supabase Postgres
+        -> Supabase Storage (Bucket: documents)
+        -> Supabase Auth
+```
+
+### Wichtige Einordnung
+
+- Das frühere README war an mehreren Stellen veraltet.
+- `MinIO`, `Redis` und `Celery` sind nicht mehr der aktuelle Produktionspfad.
+- `Magic Link` war zwischenzeitlich ein Thema, ist aber aktuell nicht der primäre Login-Flow.
+- Die temporäre `cyan`-Vercel-Domain war ein Workaround während eines Domain-/Projektkonflikts in Vercel und ist jetzt obsolet.
+
+## Was die App fachlich macht
+
+- Dokumente hochladen und einer Abteilung / einem Dokumenttyp zuordnen
+- Inhalte parsen und strukturiert extrahieren
+- Review-Queue mit Approve / Reject / Edit
+- Knowledge-Ansicht für freigegebene Daten
+- Suche über freigegebene Wissenseinträge
+- Dashboard mit Statistiken und Vollständigkeitsübersicht
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS
-- **Backend**: FastAPI, Python 3.11, Pydantic
-- **Datenbank**: PostgreSQL + pgvector
-- **File Storage**: MinIO (S3-kompatibel)
-- **Worker**: Celery + Redis
-- **LLM**: Anthropic Claude (oder LocalStubExtractor für Dev)
+### Frontend
 
-## Voraussetzungen
+- Next.js 15.5.14
+- React 18
+- TypeScript
+- Tailwind CSS
+- Supabase SSR + Supabase JS Client
 
-- Docker & Docker Compose
-- Node.js 18+ (für Frontend-Entwicklung)
-- Python 3.11+ (für Backend-Entwicklung)
+### Backend
 
-## Quick Start
+- FastAPI
+- Python 3.11
+- SQLAlchemy
+- Alembic
+- httpx
 
-### 1. Repository klonen
+### Daten und Infrastruktur
 
-```bash
-cd ~/jokari-knowledge-hub
-```
+- Supabase Postgres
+- Supabase Auth
+- Supabase Storage
+- Railway für den laufenden Python-Compute
+- Vercel für das Frontend
 
-### 2. Umgebungsvariablen einrichten
+## Auth und Berechtigungen
+
+### Aktueller Zustand
+
+- Auth ist aktiv und schützt das Frontend sowie die Backend-Router
+- Self-signup ist deaktiviert
+- Der Login in der UI läuft aktuell über E-Mail + Passwort
+- Die Magic-Link-Callback-Route existiert weiterhin, aber die UI fordert derzeit keine Magic Links mehr aktiv an
+
+### Rollenmodell
+
+- `viewer`
+  - darf lesen
+- `reviewer`
+  - darf zusätzlich Upload und Review nutzen
+- `admin`
+  - volle Berechtigungen
+
+Die Rollen werden im Backend aus Supabase-Metadaten gelesen:
+
+- primär aus `app_metadata.role`
+- fallback aus `user_metadata.role`
+- ohne Eintrag standardmäßig `viewer`
+
+### Router-Schutz
+
+### Frontend
+
+- Nicht eingeloggte Nutzer werden über Middleware auf `/login` umgeleitet
+- Öffentliche Routen sind aktuell:
+  - `/login`
+  - `/signup`
+- `/signup` ist keine echte Registrierung mehr, sondern nur noch eine Hinweisseite
+
+### Backend
+
+- `documents`, `knowledge`, `dashboard` brauchen einen eingeloggten User
+- `upload` und `review` brauchen `reviewer` oder `admin`
+
+## Benutzer anlegen
+
+Da `signup` deaktiviert ist, müssen neue Nutzer manuell in Supabase erstellt werden.
+
+### Empfohlener Weg
+
+Im Supabase-Dashboard:
+
+1. `Authentication -> Users`
+2. neuen User anlegen
+3. E-Mail als bestätigt markieren
+4. Passwort setzen
+5. Rolle in `app_metadata.role` setzen
+
+Erlaubte Rollen:
+
+- `admin`
+- `reviewer`
+- `viewer`
+
+### Wichtig
+
+- Den letzten funktionierenden Admin nicht löschen, bevor ein zweiter Admin existiert
+- Ein gelöschter Benutzer kann sich aktuell nicht selbst wieder per UI registrieren
+- Wenn Magic Links später wieder produktiv genutzt werden sollen, sollte zuerst ein eigener SMTP-Provider in Supabase konfiguriert werden
+
+## Relevante Supabase-Details
+
+- Projekt-Ref: `gqezmqopvjvpdnknmfap`
+- Region: Frankfurt
+- Storage-Bucket: `documents`
+
+### Supabase in diesem Projekt wird genutzt für
+
+- Auth
+- Datenbank
+- Dateiablage
+- Signed URLs für Attachments
+
+## Repository-Status und Source of Truth
+
+Dieses README ist die schnellste Einstiegsdoku für den Ist-Zustand.
+
+Weitere relevante Dateien:
+
+- `HANDOVER.md`
+  - chronologisches Protokoll der Änderungen
+  - nützlich für Ursachenanalyse und Verlauf
+- `CLAUDE.md`
+  - technische Zusatznotizen und Infrastrukturkontext
+
+Wenn README und ältere Doku widersprüchlich sind, gilt:
+
+1. Live-System
+2. aktueller Code auf `main`
+3. dieses README
+4. `HANDOVER.md`
+
+## Lokale Entwicklung
+
+### Voraussetzungen
+
+- Node.js 20+
+- Python 3.11+
+- Zugriff auf Supabase-Projekt und passende Env-Variablen
+
+### Backend lokal starten
 
 ```bash
 cd backend
-cp .env.example .env
-# Optional: ANTHROPIC_API_KEY für LLM-Extraktion setzen
-```
-
-### 3. Docker Services starten
-
-```bash
-docker-compose up -d
-```
-
-Dies startet:
-- PostgreSQL mit pgvector (Port 5432)
-- Redis (Port 6379)
-- MinIO (Ports 9000, 9001)
-
-### 4. Backend starten
-
-```bash
-cd backend
-
-# Virtuelle Umgebung erstellen
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Dependencies installieren
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Datenbank-Migrationen
+cp .env.example .env
 alembic upgrade head
-
-# API starten
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 5. Celery Worker starten (neues Terminal)
-
-```bash
-cd backend
-source venv/bin/activate
-celery -A app.workers.celery_app worker --loglevel=info
-```
-
-### 6. Frontend starten (neues Terminal)
+### Frontend lokal starten
 
 ```bash
 cd frontend
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-### 7. Öffnen
+### Lokale URLs
 
-- **Frontend**: http://localhost:3000
-- **API Docs**: http://localhost:8000/docs
-- **MinIO Console**: http://localhost:9001 (Credentials: jokari_minio / jokari_minio_secret)
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8000`
 
-## Projektstruktur
+### Aktuelle `.env`-Variablen
 
+### Backend
+
+Siehe `backend/.env.example`
+
+Wesentliche Variablen:
+
+- `DATABASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_BUCKET`
+- `ANTHROPIC_API_KEY`
+- `LLM_PROVIDER`
+- `CORS_ORIGINS`
+- `DEBUG`
+- `SECRET_KEY`
+
+### Frontend
+
+Siehe `frontend/.env.example`
+
+Wesentliche Variablen:
+
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Deployment
+
+### Frontend
+
+Das Frontend liegt auf Vercel.
+
+### Wichtig
+
+Es gab zwei getrennte Vercel-Projekte mit identischem Namen:
+
+- `fathmns-projects/jokari-knowledge-hub`
+- `adloca/jokari-knowledge-hub`
+
+Die produktive Hauptdomain hängt jetzt wieder am richtigen Projekt:
+
+- `fathmns-projects/jokari-knowledge-hub`
+
+Die lokale Verknüpfung `.vercel/project.json` zeigt ebenfalls auf dieses Projekt.
+
+### Manueller Production-Deploy
+
+```bash
+vercel deploy --prod -y --logs
 ```
-jokari-knowledge-hub/
-├── docker-compose.yml
-├── backend/
-│   ├── app/
-│   │   ├── api/           # REST Endpoints
-│   │   ├── models/        # SQLAlchemy Models
-│   │   ├── schemas/       # Pydantic Schemas
-│   │   │   └── knowledge/ # Schema Registry
-│   │   ├── services/      # Business Logic
-│   │   ├── extractors/    # LLM Abstraction
-│   │   ├── parsers/       # Document Parser
-│   │   └── workers/       # Celery Tasks
-│   ├── tests/
-│   ├── alembic/           # DB Migrations
-│   └── requirements.txt
-└── frontend/
-    ├── app/               # Next.js Pages
-    │   ├── upload/
-    │   ├── dokumente/
-    │   ├── review/
-    │   └── suche/
-    └── components/
+
+### Backend
+
+Das Backend läuft aktuell auf Railway.
+
+Aktueller Service-Kontext:
+
+- Project: `gracious-magic`
+- Environment: `production`
+- Service: `jokari-knowledge-hub`
+
+### Manueller Deploy
+
+```bash
+railway up backend --path-as-root -s jokari-knowledge-hub -c --verbose
 ```
 
-## Schema Registry
+### Hinweis zur Datenbankverbindung
 
-Vordefinierte Schemas pro Abteilung:
+In Railway muss für Supabase die funktionierende produktive Connection verwendet werden. Der direkte Supabase-DB-Host war in diesem Setup problematisch; produktiv wurde deshalb auf den Supabase Pooler gewechselt.
 
-| Abteilung | Dokumenttypen |
-|-----------|---------------|
-| Sales | TrainingModule, Objection, Persona, PitchScript, EmailTemplate |
-| Support | FAQ, TroubleshootingGuide, HowToSteps |
-| Product | ProductSpec, CompatibilityMatrix, SafetyNotes |
-| Marketing | MessagingPillars, ContentGuidelines |
-| Legal | ComplianceNotes, ClaimsDoDont |
+## Verifikation nach Deploy
 
-## API Endpoints
+### Frontend
 
-### Upload
-- `POST /api/upload` - Dokumente hochladen
-- `GET /api/upload/doc-types` - Verfügbare Dokumenttypen
+Erwartetes Verhalten:
 
-### Dokumente
-- `GET /api/documents` - Liste aller Dokumente
-- `GET /api/documents/{id}` - Dokument-Details
-- `GET /api/documents/{id}/chunks` - Text-Chunks
-- `GET /api/documents/{id}/records` - Extrahierte Records
+- `/login` liefert `200`
+- `/` leitet abgemeldet auf `/login?next=%2F`
+- `site.webmanifest` liefert `200` und darf nicht auf Login umgeleitet werden
 
-### Review
-- `GET /api/review` - Review-Queue
-- `GET /api/review/{id}` - Record-Details mit Evidence
-- `POST /api/review/{id}/approve` - Record genehmigen
-- `POST /api/review/{id}/reject` - Record ablehnen
-- `PUT /api/review/{id}` - Record bearbeiten
+### Backend
 
-### Knowledge Search (Agent-Ready)
-- `GET /api/knowledge/search?q=...&department=...&schema=...`
-  - Nur APPROVED Records
-  - Inkl. Quellenbelege
+Erwartetes Verhalten:
 
-### Dashboard
-- `GET /api/dashboard/stats` - Statistiken
+```bash
+curl https://jokari-knowledge-hub-production.up.railway.app/health
+```
 
-## Tests ausführen
+Soll liefern:
+
+```json
+{"status":"healthy"}
+```
+
+## Bekannte Entscheidungen und Altlasten
+
+### Bewusst so gelöst
+
+- Passwort-Login ist derzeit der produktive Default
+- offene Registrierung ist abgeschaltet
+- Railway bleibt vorerst als Compute-Layer bestehen
+
+### Nicht mehr aktuell
+
+- MinIO als produktiver Storage
+- Redis / Celery als produktiver Worker-Pfad
+- offene Signup-Strecke
+- `cyan` als bevorzugte Frontend-Domain
+
+## Bekannte offene Punkte
+
+### 1. Railway ist noch nicht eliminiert
+
+Das endgültige Zielbild ist:
+
+- `Vercel` für Frontend
+- `Vercel` oder andere serverlose Zielplattform für den Python-/API-Teil
+- `Supabase` für Daten, Auth, Storage
+
+Dieser letzte Migrationsschritt ist noch offen.
+
+### 2. Magic Link ist nicht der primäre Login-Flow
+
+Der Callback-Code ist vorhanden, aber die UI nutzt aktuell Passwort-Login.
+
+Wenn Magic Links wieder produktiv werden sollen:
+
+1. SMTP in Supabase sauber konfigurieren
+2. UI-Flow bewusst wieder aktivieren
+3. Login-Verhalten erneut smoke-testen
+
+### 3. Rollen- und User-Operations sind noch manuell
+
+Benutzeranlage und Rollenvergabe passieren aktuell über Supabase-Admin-Funktionen, nicht über eine interne Admin-Oberfläche.
+
+## Sicherheitsstatus
+
+Stand 24.03.2026:
+
+- Auth ist aktiv
+- Self-signup ist deaktiviert
+- Backend-Router sind geschützt
+- Frontend sendet Supabase Bearer Tokens automatisch an `/api/*`
+- Next.js wurde auf eine gepatchte Version angehoben
+- `npm audit` ist aktuell sauber
+
+## Empfohlene nächste Schritte
+
+1. Interne Benutzerverwaltung vereinfachen
+2. Optional SMTP + Magic Link sauber reaktivieren
+3. Railway als Compute-Layer ablösen
+4. Danach Architektur final auf `Vercel + Supabase` konsolidieren
+
+## Tests und Kommandos
+
+### Frontend-Build
+
+```bash
+cd frontend
+npm run build
+```
+
+### Frontend Security Check
+
+```bash
+cd frontend
+npm audit
+```
+
+### Backend-Syntaxcheck
 
 ```bash
 cd backend
-pytest
+python3 -m compileall app
 ```
-
-## LLM-Konfiguration
-
-### Development (Standard)
-```env
-LLM_PROVIDER=stub
-```
-Verwendet regelbasierte Extraktion ohne API-Kosten.
-
-### Production
-```env
-LLM_PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-...
-```
-Verwendet Claude für hochwertige strukturierte Extraktion.
-
-## Workflow
-
-1. **Upload**: Datei mit Metadaten (Abteilung, Typ, Datum, Owner) hochladen
-2. **Parsing**: Automatische Textextraktion und Chunking
-3. **Extraktion**: LLM extrahiert strukturierte Daten gemäß Schema
-4. **Review**: Records erscheinen in der Review-Queue
-5. **Genehmigung**: Reviewer prüft Daten und Evidence, genehmigt oder lehnt ab
-6. **Verfügbar**: Genehmigte Records sind über die Search-API für Agenten abrufbar
-
-## Merge-Logik
-
-Bei erneutem Upload eines Dokuments:
-1. System prüft Primary Key (z.B. Artikelnummer, ID)
-2. Bei Match mit genehmigtem Record: Erstellt Update-Vorschlag
-3. Diff-Ansicht zeigt Änderungen (hinzugefügt/entfernt/geändert)
-4. Reviewer kann Update genehmigen oder ablehnen
-5. Version wird inkrementiert bei Genehmigung
-
-## Environment Variables
-
-| Variable | Default | Beschreibung |
-|----------|---------|--------------|
-| DATABASE_URL | postgresql://... | PostgreSQL Connection |
-| REDIS_URL | redis://localhost:6379/0 | Redis für Celery |
-| MINIO_ENDPOINT | localhost:9000 | MinIO S3 Endpoint |
-| MINIO_ACCESS_KEY | jokari_minio | MinIO Access Key |
-| MINIO_SECRET_KEY | jokari_minio_secret | MinIO Secret Key |
-| LLM_PROVIDER | stub | stub oder claude |
-| ANTHROPIC_API_KEY | - | API Key für Claude |
 
 ## Lizenz
 
 Proprietär - Jokari GmbH
-
-## Production Deployment
-
-### Option 1: Vercel + Railway + Supabase (Empfohlen)
-
-#### 1. Supabase (Datenbank)
-1. Gehe zu [supabase.com](https://supabase.com) und erstelle ein Projekt
-2. Kopiere die `DATABASE_URL` aus Settings > Database
-
-#### 2. Railway (Backend)
-1. Gehe zu [railway.app](https://railway.app)
-2. "New Project" > "Deploy from GitHub repo"
-3. Wähle `jokari-knowledge-hub` und setze Root Directory: `backend`
-4. Füge Environment Variables hinzu:
-   - `DATABASE_URL` (von Supabase)
-   - `REDIS_URL` (Railway Redis Service hinzufügen)
-   - `LLM_PROVIDER=stub` (oder `claude` mit API Key)
-5. Nach Deploy: Kopiere die Backend-URL (z.B. `https://jokari-backend.up.railway.app`)
-
-#### 3. Vercel (Frontend)
-1. Gehe zu [vercel.com](https://vercel.com)
-2. "Import Project" > Wähle `jokari-knowledge-hub`
-3. Root Directory: `frontend`
-4. Environment Variables:
-   - `NEXT_PUBLIC_API_URL` = Backend-URL von Railway
-5. Deploy!
-
-### Option 2: Docker Compose (Self-Hosted)
-
-```bash
-# Auf deinem Server
-git clone https://github.com/fathmn/jokari-knowledge-hub.git
-cd jokari-knowledge-hub
-docker-compose up -d
-```

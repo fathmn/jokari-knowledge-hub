@@ -6,6 +6,73 @@
 
 ---
 
+## 2026-03-24 — Produktionsstand konsolidiert, Auth reaktiviert, README als Source of Truth erneuert (Codex)
+
+**Kontext:** Nach dem temporären Demo-Betrieb ohne echte Auth musste der produktive Pfad wiederhergestellt, auf die Hauptdomain zurückgeführt und technisch dokumentiert werden. Zusätzlich war die bestehende README inhaltlich stark veraltet und beschrieb nicht mehr den tatsächlichen Live-Stack.
+
+### Produktivpfad wiederhergestellt
+
+#### 0.1 Demo-Bypass entfernt
+- **Fix:** Der temporäre Demo-Modus ohne Auth wurde zurückgebaut.
+- **Effekt:** Frontend und Backend nutzen wieder echte Supabase-Session-Prüfung.
+- **Dateien:** `backend/app/api/__init__.py`, `frontend/app/login/page.tsx`, `frontend/app/signup/page.tsx`, `frontend/middleware.ts`
+
+#### 0.2 Supabase Auth als produktiver Standard bestätigt
+- **Status:** Passwort-Login ist produktiv aktiv, offene Registrierung ist deaktiviert.
+- **Effekt:** Neue Benutzer müssen kontrolliert in Supabase angelegt werden; spontane Selbstregistrierung ist nicht mehr möglich.
+- **Hinweis:** Magic-Link-Callback bleibt technisch erhalten, ist aber derzeit nicht der primäre UI-Flow.
+
+#### 0.3 Hauptdomain auf den richtigen Vercel-Deploy zurückgeführt
+- **Problem:** Es existierten zwei Vercel-Projekte mit identischem Namen in unterschiedlichen Scopes, wodurch `jokari-knowledge-hub.vercel.app` und `cyan` zeitweise auf unterschiedliche Stände zeigten.
+- **Fix:** Lokale Vercel-Verknüpfung auf `fathmns-projects/jokari-knowledge-hub` umgestellt und Production-Deploy auf die Hauptdomain ausgerollt.
+- **Effekt:** `cyan` ist nicht mehr der bevorzugte Deploy-Pfad; die Hauptdomain ist wieder die maßgebliche URL.
+
+#### 0.4 Statischer Asset-Fix in Middleware
+- **Problem:** `site.webmanifest` wurde fälschlich durch die Auth-Middleware auf `/login` umgeleitet, was einen Browser-Manifest-Fehler erzeugte.
+- **Fix:** Middleware-Matcher um `site.webmanifest` und weitere statische Dateitypen ergänzt.
+- **Datei:** `frontend/middleware.ts`
+
+### Security- und Dependency-Härtung
+
+#### 1.1 Next.js auf gepatchte Version angehoben
+- **Fix:** Frontend von `Next.js 14.2.35` auf `15.5.14` aktualisiert.
+- **Effekt:** Die zuvor offenen `npm audit`-Meldungen wurden beseitigt.
+- **Dateien:** `frontend/package.json`, `frontend/package-lock.json`
+
+#### 1.2 Next 15 SSR-Cookie-Anpassung
+- **Problem:** `cookies()` ist in Next 15 asynchron; der bisherige Supabase-Server-Client schlug beim Build fehl.
+- **Fix:** Server-Client und Auth-Callback auf den neuen Flow angepasst.
+- **Dateien:** `frontend/utils/supabase/server.ts`, `frontend/app/auth/callback/route.ts`
+
+#### 1.3 Output-Trace-Konfiguration für Monorepo-Warnung
+- **Fix:** `outputFileTracingRoot` in `frontend/next.config.js` gesetzt.
+- **Effekt:** Der Build verhält sich im Repo-Kontext stabiler und vermeidet Root-Erkennungswarnungen.
+- **Datei:** `frontend/next.config.js`
+
+### Deploy- und Verifizierungsstatus
+
+#### 2.1 Frontend produktiv deployed
+- **Status:** Hauptdomain `https://jokari-knowledge-hub.vercel.app` liefert wieder den aktuellen produktiven Build.
+- **Verifiziert:** `/login` liefert `200`, `/` leitet abgemeldet korrekt weiter, `site.webmanifest` liefert `200`.
+
+#### 2.2 Backend produktiv erreichbar
+- **Status:** Railway-Backend unter `https://jokari-knowledge-hub-production.up.railway.app` bleibt produktiv aktiv.
+- **Verifiziert:** `GET /health` liefert `200` mit `{"status":"healthy"}`.
+
+#### 2.3 End-to-End Login getestet
+- **Verifiziert:** Logout und erneuter Passwort-Login auf der Hauptdomain funktionieren; Dashboard lädt nach erfolgreicher Anmeldung.
+
+### Dokumentation
+
+#### 3.1 README vollständig erneuert
+- **Fix:** README komplett auf den echten Ist-Zustand umgeschrieben.
+- **Enthält jetzt:** Live-Architektur, aktuelle URLs, Auth-Modell, User-Provisioning, lokale Entwicklung, Deploy-Pfade, bekannte Altlasten und nächste Schritte.
+- **Datei:** `README.md`
+
+#### 3.2 Git-Stand synchronisiert
+- **Status:** Produktionsrelevante Änderungen wurden auf `main` gepusht.
+- **Commits:** `8e823d7` und `a759367`
+
 ## 2026-03-24 — Password-Login und Admin-User-Setup (Claude Opus 4.6)
 
 **Kontext:** Der Magic-Link-Login war durch das Supabase-Maillimit (2 Mails/Stunde ohne eigenen SMTP-Server) blockiert. Codex hatte mehrere Workarounds versucht (Hash-Session-Uebernahme, OTP-Verification, Code-Forwarding), das Grundproblem blieb aber bestehen: Ohne E-Mail-Zustellung kein Login.
