@@ -23,6 +23,7 @@ import {
   DOCUMENT_PROCESSING_STATUSES,
   DOCUMENT_STATUS_POLL_INTERVAL_MS,
 } from '@/lib/documentDetailConfig'
+import { SCHEMA_COVERAGE_LABEL, formatSchemaCoverage } from '@/lib/schemaCoverage'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -350,7 +351,7 @@ export default function DocumentDetailPage() {
                         </span>
                         <div className="flex items-center gap-2">
                           <CompletenessBar score={record.completeness_score} size="sm" />
-                          <span>{Math.round(record.completeness_score * 100)}%</span>
+                          <span>{SCHEMA_COVERAGE_LABEL} {formatSchemaCoverage(record.completeness_score)}</span>
                         </div>
                       </div>
                     </div>

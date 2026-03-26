@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, RefreshCw, Package, FileText } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
+import { SCHEMA_COVERAGE_LABEL, formatSchemaCoverage } from '@/lib/schemaCoverage'
 
 interface RecordData {
   id: string
@@ -248,7 +249,7 @@ function ReviewContent() {
                       record.completeness_score >= 0.5 ? 'text-primary-600' :
                       'text-red-600'
                     }`}>
-                      {Math.round(record.completeness_score * 100)}%
+                      {SCHEMA_COVERAGE_LABEL} {formatSchemaCoverage(record.completeness_score)}
                     </span>
                   </div>
                 </div>

@@ -28,6 +28,12 @@ import StatusBadge from '@/components/StatusBadge'
 import CompletenessBar from '@/components/CompletenessBar'
 import ConfirmModal from '@/components/ConfirmModal'
 import { useToast } from '@/components/Toast'
+import {
+  SCHEMA_COVERAGE_EXPLANATION,
+  SCHEMA_COVERAGE_LABEL,
+  formatSchemaCoverage,
+  formatSchemaCoverageSummary,
+} from '@/lib/schemaCoverage'
 
 interface Evidence {
   id: string
@@ -472,10 +478,10 @@ export default function RecordDetailPage() {
       {/* Mobile Quick Info */}
       <div className="lg:hidden flex items-center gap-4 mb-4 p-4 bg-white rounded-xl border border-gray-200">
         <div className="flex-1">
-          <p className="text-xs text-gray-500 mb-1">Vollständigkeit</p>
+          <p className="text-xs text-gray-500 mb-1">{SCHEMA_COVERAGE_LABEL}</p>
           <div className="flex items-center gap-2">
             <CompletenessBar score={record.completeness_score} size="sm" />
-            <span className="text-sm font-semibold">{Math.round(record.completeness_score * 100)}%</span>
+            <span className="text-sm font-semibold">{formatSchemaCoverage(record.completeness_score)}</span>
           </div>
         </div>
         <div className="text-right">
@@ -947,11 +953,14 @@ export default function RecordDetailPage() {
           {/* Completeness */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              Vollständigkeit
+              {SCHEMA_COVERAGE_LABEL}
             </h3>
             <CompletenessBar score={record.completeness_score} showLabel size="lg" />
             <p className="text-sm text-gray-500 mt-2">
-              {Math.round(record.completeness_score * 100)}% der Pflichtfelder ausgefüllt
+              {formatSchemaCoverageSummary(record.completeness_score)}
+            </p>
+            <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+              {SCHEMA_COVERAGE_EXPLANATION}
             </p>
           </div>
 

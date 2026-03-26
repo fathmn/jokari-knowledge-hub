@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import {
   LayoutDashboard,
   Upload,
@@ -30,7 +30,7 @@ const wissensbereiche = [
   { name: 'Suche', href: '/suche', icon: Search },
 ]
 
-const tags = [
+const departments = [
   { name: 'Vertrieb', value: 'sales', color: 'bg-accent-500' },
   { name: 'Support', value: 'support', color: 'bg-primary-500' },
   { name: 'Produkt', value: 'product', color: 'bg-accent-300' },
@@ -43,7 +43,9 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { user, signOut } = useAuth()
+  const activeDepartment = searchParams.get('department') || ''
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: any } }) => {
     const isActive = pathname === item.href ||
@@ -137,21 +139,29 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             ))}
           </div>
 
-          {/* Tags */}
-          <SectionHeader>Tags</SectionHeader>
+          {/* Abteilungen */}
+          <SectionHeader>Abteilungen</SectionHeader>
           <div className="space-y-0.5">
-            {tags.map((tag) => (
-              <Link
-                key={tag.name}
-                href={`/dokumente?department=${tag.value}`}
-                onClick={onClose}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-accent-500
-                           hover:bg-primary-50 rounded-lg w-full text-left transition-colors"
-              >
-                <span className={clsx('w-2.5 h-2.5 rounded-full', tag.color)} />
-                <span>{tag.name}</span>
-              </Link>
-            ))}
+            {departments.map((department) => {
+              const isActive = pathname === '/wissen' && activeDepartment === department.value
+
+              return (
+                <Link
+                  key={department.name}
+                  href={`/wissen?department=${department.value}`}
+                  onClick={onClose}
+                  className={clsx(
+                    'flex items-center gap-2.5 px-3 py-1.5 text-[13px] rounded-lg w-full text-left transition-colors',
+                    isActive
+                      ? 'bg-primary-50 text-accent-700'
+                      : 'text-accent-500 hover:bg-primary-50'
+                  )}
+                >
+                  <span className={clsx('w-2.5 h-2.5 rounded-full', department.color)} />
+                  <span>{department.name}</span>
+                </Link>
+              )
+            })}
           </div>
         </nav>
 

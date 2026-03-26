@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FileText, Clock, CheckCircle, XCircle, AlertTriangle, TrendingUp } from 'lucide-react'
 import DashboardTile from '@/components/DashboardTile'
 import CompletenessBar from '@/components/CompletenessBar'
+import { SCHEMA_COVERAGE_EXPLANATION, SCHEMA_COVERAGE_LABEL, formatSchemaCoverage } from '@/lib/schemaCoverage'
 
 interface DashboardStats {
   total_documents: number
@@ -124,10 +125,13 @@ export default function Dashboard() {
         <div className="card p-4 sm:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-neutral-900">
-              Vollständigkeit nach Abteilung
+              {SCHEMA_COVERAGE_LABEL} nach Abteilung
             </h2>
             <TrendingUp className="w-5 h-5 text-neutral-400" />
           </div>
+          <p className="text-sm text-neutral-500 mb-5">
+            {SCHEMA_COVERAGE_EXPLANATION}
+          </p>
           <div className="space-y-5">
             {stats?.completeness_by_department &&
               Object.entries(stats.completeness_by_department).map(([dept, score]) => (
@@ -141,7 +145,7 @@ export default function Dashboard() {
                       score >= 0.5 ? 'text-primary-600' :
                       'text-red-600'
                     }`}>
-                      {Math.round(score * 100)}%
+                      {formatSchemaCoverage(score)}
                     </span>
                   </div>
                   <CompletenessBar score={score} size="md" />
