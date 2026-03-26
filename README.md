@@ -67,6 +67,8 @@ Stand: 26.03.2026
 - Fuer `sales / training_module` gilt jetzt fachlich: Produktlastige Vertriebsschulungen sind meist **mehrteilige Sales-Knowledge-Dokumente**, nicht ein einziges globales Trainingsmodul.
 - Im aktuellen Modell bleiben diese Records weiterhin auf dem `TrainingModule`-Pfad, werden aber pro Produkt-/Themenabschnitt einzeln erzeugt.
 - Das Feld `version` ist fuer diesen Pfad nicht mehr pro Record zwingend. Wenn nur ein Dokumentstand vorliegt, wird er aus dem Dokumentkontext uebernommen.
+- Fuer problematische `docx`-Dateien mit defekten Word-Referenzen gibt es jetzt einen strukturerhaltenden XML-Fallback statt eines reinen Volltext-Fallbacks.
+- Das reale Benchmark-Dokument `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx` wurde produktionsnah gegen Claude simuliert und ergab `17` fachliche Units, `17` plausible Records und `0` finale `needs_review`-Records.
 - Lokale Entwicklung kann weiterhin mit dem Stub-Extractor laufen; produktiv ist Claude der relevante Extraktor.
 
 ## Tech Stack

@@ -16,8 +16,20 @@ from app.parsers.base import DocumentParser, ParsedDocument, ParsedSection
 class DocxParser(DocumentParser):
     """Parser for Microsoft Word documents."""
 
+    _WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    _DOC_PROPS_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+    _DC_NS = "http://purl.org/dc/elements/1.1/"
+    _DCTERMS_NS = "http://purl.org/dc/terms/"
     _INLINE_SECTION_PATTERNS = (
         re.compile(r"^(?:titel|title|produkt|artikel|modul|abschnitt)\s*:\s*(.+)$", re.IGNORECASE),
+    )
+    _SUBSECTION_PATTERNS = (
+        re.compile(r"^beschreibung\s*:\s*$", re.IGNORECASE),
+        re.compile(r"^weitere informationen\s*:\s*$", re.IGNORECASE),
+        re.compile(r"^anwendung(?:\s+.+)?\s*:\s*.*$", re.IGNORECASE),
+        re.compile(r"^titelbild\s*:\s*.*$", re.IGNORECASE),
+        re.compile(r"^medien\s*:\s*.*$", re.IGNORECASE),
+        re.compile(r"^umsetzung als(?:\s+column)?\s*:\s*.*$", re.IGNORECASE),
     )
     _NUMBERED_HEADING_PATTERN = re.compile(r"^\d+(?:[.)]\d+)*[.)]?\s+.+$")
     _UPPERCASE_HEADING_PATTERN = re.compile(r"^[A-Z0-9ÄÖÜ/&+.\- ]{4,80}$")
@@ -26,55 +38,94 @@ class DocxParser(DocumentParser):
     def supports(self, file_extension: str) -> bool:
         return file_extension.lower() == ".docx"
 
-    def _extract_text_from_xml(self, file_path: str) -> tuple[str, list[str]]:
-        """Fallback: Extract text directly from document.xml when python-docx fails."""
-        warnings = []
-        text_parts = []
+    def _extract_blocks_from_xml(self, file_path: str) -> tuple[list[dict], dict, list[str]]:
+        """Fallback: Recover document structure directly from XML when python-docx fails."""
+        warnings: list[str] = []
+        blocks: list[dict] = []
+        metadata: dict = {}
+        ns = {"w": self._WORD_NS}
 
         try:
-            with zipfile.ZipFile(file_path, "r") as z:
-                xml_content = z.read("word/document.xml")
-                root = ET.fromstring(xml_content)
+            with zipfile.ZipFile(file_path, "r") as archive:
+                root = ET.fromstring(archive.read("word/document.xml"))
+                body = root.find("w:body", ns)
+                if body is None:
+                    raise ValueError("word/document.xml enthaelt keinen body")
 
-                for node in root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"):
-                    if node.text:
-                        text_parts.append(node.text)
+                for child in list(body):
+                    local_name = child.tag.split("}")[-1]
 
-                warnings.append("Dokument mit Fallback-Parser gelesen (beschädigte Referenzen)")
+                    if local_name == "p":
+                        paragraph_data = self._xml_paragraph_to_block(child, ns)
+                        if paragraph_data:
+                            blocks.append(paragraph_data)
+                        continue
+
+                    if local_name == "tbl":
+                        table_text = self._xml_table_to_text(child, ns)
+                        if table_text:
+                            blocks.append(
+                                {
+                                    "kind": "table",
+                                    "text": table_text,
+                                    "style_name": "",
+                                    "is_list": False,
+                                    "bold_ratio": 0.0,
+                                    "uppercase_ratio": 0.0,
+                                }
+                            )
+
+                metadata = self._extract_metadata_from_xml(archive)
+                warnings.append("Dokument mit XML-Fallback-Parser gelesen (beschädigte Referenzen)")
         except Exception as exc:
             warnings.append(f"Fallback-Parser fehlgeschlagen: {exc}")
 
-        return "\n\n".join(text_parts), warnings
+        return blocks, metadata, warnings
 
     def parse(self, file_path: str) -> ParsedDocument:
         try:
             doc = Document(file_path)
         except KeyError as exc:
             if "NULL" in str(exc) or "word/" in str(exc):
-                raw_text, warnings = self._extract_text_from_xml(file_path)
-                if raw_text:
-                    return ParsedDocument(
-                        raw_text=raw_text,
-                        sections=[
-                            ParsedSection(
-                                title=None,
-                                content=raw_text,
-                                level=0,
-                                start_offset=0,
-                                end_offset=len(raw_text),
-                                path="",
-                            )
-                        ],
-                        metadata={},
+                blocks, metadata, warnings = self._extract_blocks_from_xml(file_path)
+                if blocks:
+                    return self._build_parsed_document_from_blocks(
+                        blocks=blocks,
+                        metadata=metadata,
                         confidence=0.7,
-                        file_type="docx",
                         warnings=warnings,
                     )
             raise
 
         warnings: list[str] = []
-        sections: list[ParsedSection] = []
         blocks = self._extract_blocks(doc)
+        metadata = {}
+        try:
+            core_props = doc.core_properties
+            if core_props.title:
+                metadata["title"] = core_props.title
+            if core_props.author:
+                metadata["author"] = core_props.author
+            if core_props.created:
+                metadata["created"] = str(core_props.created)
+        except Exception as exc:
+            warnings.append(f"Metadaten konnten nicht gelesen werden: {exc}")
+
+        return self._build_parsed_document_from_blocks(
+            blocks=blocks,
+            metadata=metadata,
+            confidence=1.0,
+            warnings=warnings,
+        )
+
+    def _build_parsed_document_from_blocks(
+        self,
+        blocks: list[dict],
+        metadata: dict,
+        confidence: float,
+        warnings: list[str],
+    ) -> ParsedDocument:
+        sections: list[ParsedSection] = []
         raw_text_parts: list[str] = []
         current_offset = 0
         current_section_title: str | None = None
@@ -141,26 +192,37 @@ class DocxParser(DocumentParser):
                 )
             )
 
-        metadata = {}
-        try:
-            core_props = doc.core_properties
-            if core_props.title:
-                metadata["title"] = core_props.title
-            if core_props.author:
-                metadata["author"] = core_props.author
-            if core_props.created:
-                metadata["created"] = str(core_props.created)
-        except Exception as exc:
-            warnings.append(f"Metadaten konnten nicht gelesen werden: {exc}")
-
         return ParsedDocument(
             raw_text=raw_text,
             sections=sections,
             metadata=metadata,
-            confidence=1.0,
+            confidence=confidence,
             file_type="docx",
             warnings=warnings,
         )
+
+    def _build_block(
+        self,
+        text: str,
+        style_name: str,
+        is_list: bool,
+        bold_ratio: float,
+    ) -> dict:
+        alpha_chars = [char for char in text if char.isalpha()]
+        uppercase_ratio = (
+            sum(1 for char in alpha_chars if char.isupper()) / len(alpha_chars)
+            if alpha_chars
+            else 0.0
+        )
+
+        return {
+            "kind": "paragraph",
+            "text": text,
+            "style_name": style_name,
+            "is_list": is_list,
+            "bold_ratio": bold_ratio,
+            "uppercase_ratio": uppercase_ratio,
+        }
 
     def _extract_blocks(self, doc: DocxDocument) -> list[dict]:
         blocks: list[dict] = []
@@ -171,23 +233,13 @@ class DocxParser(DocumentParser):
                 if not text:
                     continue
 
-                style_name = item.style.name if item.style else ""
-                alpha_chars = [char for char in text if char.isalpha()]
-                uppercase_ratio = (
-                    sum(1 for char in alpha_chars if char.isupper()) / len(alpha_chars)
-                    if alpha_chars
-                    else 0.0
-                )
-
                 blocks.append(
-                    {
-                        "kind": "paragraph",
-                        "text": text,
-                        "style_name": style_name,
-                        "is_list": self._paragraph_is_list(item),
-                        "bold_ratio": self._paragraph_bold_ratio(item),
-                        "uppercase_ratio": uppercase_ratio,
-                    }
+                    self._build_block(
+                        text=text,
+                        style_name=item.style.name if item.style else "",
+                        is_list=self._paragraph_is_list(item),
+                        bold_ratio=self._paragraph_bold_ratio(item),
+                    )
                 )
                 continue
 
@@ -205,6 +257,89 @@ class DocxParser(DocumentParser):
                 )
 
         return blocks
+
+    def _xml_paragraph_to_block(self, paragraph: ET.Element, ns: dict[str, str]) -> dict | None:
+        text_parts: list[str] = []
+        total_runs = 0
+        bold_runs = 0
+
+        for run in paragraph.findall("w:r", ns):
+            run_text_parts: list[str] = []
+            for node in list(run):
+                local_name = node.tag.split("}")[-1]
+                if local_name == "t" and node.text:
+                    run_text_parts.append(node.text)
+                elif local_name in {"br", "cr"}:
+                    run_text_parts.append("\n")
+                elif local_name == "tab":
+                    run_text_parts.append("\t")
+
+            run_text = "".join(run_text_parts)
+            if run_text:
+                text_parts.append(run_text)
+                total_runs += 1
+                if run.find("w:rPr/w:b", ns) is not None or run.find("w:rPr/w:bCs", ns) is not None:
+                    bold_runs += 1
+
+        text = "".join(text_parts).strip()
+        if not text:
+            return None
+
+        style_name = ""
+        style = paragraph.find("w:pPr/w:pStyle", ns)
+        if style is not None:
+            style_name = style.attrib.get(f"{{{self._WORD_NS}}}val", "")
+
+        is_list = paragraph.find("w:pPr/w:numPr", ns) is not None
+        bold_ratio = bold_runs / total_runs if total_runs else 0.0
+
+        return self._build_block(
+            text=text,
+            style_name=style_name,
+            is_list=is_list,
+            bold_ratio=bold_ratio,
+        )
+
+    def _xml_table_to_text(self, table: ET.Element, ns: dict[str, str]) -> str:
+        rows: list[str] = []
+        for row in table.findall("w:tr", ns):
+            cells: list[str] = []
+            for cell in row.findall("w:tc", ns):
+                paragraph_texts: list[str] = []
+                for paragraph in cell.findall("w:p", ns):
+                    block = self._xml_paragraph_to_block(paragraph, ns)
+                    if block and block["text"]:
+                        paragraph_texts.append(block["text"])
+
+                cell_text = " ".join(paragraph_texts).strip()
+                if cell_text:
+                    cells.append(cell_text)
+
+            if cells:
+                rows.append(" | ".join(cells))
+
+        return "\n".join(rows).strip()
+
+    def _extract_metadata_from_xml(self, archive: zipfile.ZipFile) -> dict:
+        metadata: dict = {}
+        try:
+            core_xml = archive.read("docProps/core.xml")
+        except KeyError:
+            return metadata
+
+        root = ET.fromstring(core_xml)
+        title = root.find(f"{{{self._DC_NS}}}title")
+        creator = root.find(f"{{{self._DC_NS}}}creator")
+        created = root.find(f"{{{self._DCTERMS_NS}}}created")
+
+        if title is not None and title.text:
+            metadata["title"] = title.text
+        if creator is not None and creator.text:
+            metadata["author"] = creator.text
+        if created is not None and created.text:
+            metadata["created"] = created.text
+
+        return metadata
 
     def _iter_block_items(self, parent: DocxDocument | _Cell) -> Iterator[Paragraph | Table]:
         if isinstance(parent, DocxDocument):
@@ -266,6 +401,10 @@ class DocxParser(DocumentParser):
             match = pattern.match(text)
             if match:
                 return 1, match.group(1).strip()
+
+        for pattern in self._SUBSECTION_PATTERNS:
+            if pattern.match(text):
+                return 2, text
 
         if block.get("is_list"):
             return 0, None

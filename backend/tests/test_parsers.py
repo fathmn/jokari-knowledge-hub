@@ -129,3 +129,33 @@ class TestDocxParser:
             assert "Verkaufsargumente" in principle_section.content
         finally:
             os.unlink(temp_path)
+
+    def test_xml_fallback_recovers_structured_sections(self):
+        parser = DocxParser()
+        doc = WordDocument()
+        doc.add_paragraph("Titel: Universal No. 12")
+        doc.add_paragraph("Beschreibung:")
+        doc.add_paragraph("Der Entmanteler Universal No. 12 ist das Einstiegswerkzeug in der Hausinstallation.")
+        doc.add_paragraph("Titel: JOKARI XL")
+        doc.add_paragraph("Beschreibung:")
+        doc.add_paragraph("Der JOKARI XL ist fuer tiefe Geraetedosen und groessere Durchmesser ausgelegt.")
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as handle:
+            temp_path = handle.name
+
+        try:
+            doc.save(temp_path)
+            blocks, metadata, warnings = parser._extract_blocks_from_xml(temp_path)
+            result = parser._build_parsed_document_from_blocks(
+                blocks=blocks,
+                metadata=metadata,
+                confidence=0.7,
+                warnings=warnings,
+            )
+
+            section_titles = [section.title for section in result.sections if section.title]
+            assert "Universal No. 12" in section_titles
+            assert "JOKARI XL" in section_titles
+            assert any("Fallback-Parser" in warning for warning in result.warnings)
+        finally:
+            os.unlink(temp_path)

@@ -12,37 +12,13 @@ class FakeChunkExtractor:
         self.calls = []
 
     async def extract(self, text, schema, context):
-        self.calls.append(context)
-
-        if context.chunk_index == 0:
-            return ExtractionResult(
-                records=[
-                    ExtractedRecord(
-                        data={
-                            "title": "JOKARI XL",
-                            "content": "Produktueberblick fuer groessere Kabeldurchmesser.",
-                        },
-                        schema_type=schema.__name__,
-                        evidence=[
-                            EvidencePointer(
-                                field_path="title",
-                                excerpt="JOKARI XL",
-                                chunk_index=context.chunk_index,
-                            )
-                        ],
-                        confidence=0.85,
-                        source_section="JOKARI XL",
-                    )
-                ],
-                valid=True,
-                confidence=0.85,
-            )
-
+        self.calls.append((text, context))
         return ExtractionResult(
             records=[
                 ExtractedRecord(
                     data={
                         "title": "JOKARI XL",
+                        "content": "Produktueberblick fuer groessere Kabeldurchmesser.",
                         "key_points": ["Robust fuer groessere Durchmesser"],
                     },
                     schema_type=schema.__name__,
@@ -97,7 +73,9 @@ def test_ingestion_extracts_per_chunk_and_merges_duplicate_training_records(monk
 
     service._extract_records(document, chunks, full_text="\n\n".join(chunk.text for chunk in chunks))
 
-    assert len(fake_extractor.calls) == 2
+    assert len(fake_extractor.calls) == 1
+    assert fake_extractor.calls[0][1].section_path == "Vertriebsschulung"
+    assert "Weitere Verkaufsargumente" in fake_extractor.calls[0][0]
     assert len(created_records) == 1
 
     created = created_records[0]

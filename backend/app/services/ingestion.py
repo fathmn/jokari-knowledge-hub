@@ -109,7 +109,7 @@ class IngestionService:
         """Extract structured records from document chunks and merge duplicate findings."""
         extractor = get_extractor()
         schema = self.registry.get_schema(document.doc_type)
-        extraction_units = self._build_extraction_units(chunks, full_text)
+        extraction_units = self._build_extraction_units(document, chunks, full_text)
         aggregated_records: list[dict] = []
         aggregated_index: dict[str, int] = {}
         stub_fallback_count = 0
@@ -174,9 +174,12 @@ class IngestionService:
             },
         )
 
-    def _build_extraction_units(self, chunks: list[Chunk], full_text: str) -> list[dict]:
+    def _build_extraction_units(self, document: Document, chunks: list[Chunk], full_text: str) -> list[dict]:
         if not chunks:
             return [{"text": full_text, "section_path": "", "chunk_index": 0}]
+
+        if document.doc_type == DocType.TRAINING_MODULE and chunks and self._should_group_training_module_chunks(chunks):
+            return self._group_training_module_units(chunks)
 
         if len(chunks) == 1:
             chunk = chunks[0]
@@ -197,6 +200,62 @@ class IngestionService:
             for chunk in sorted(chunks, key=lambda item: item.chunk_index)
             if chunk.text and chunk.text.strip()
         ]
+
+    def _should_group_training_module_chunks(self, chunks: list[Chunk]) -> bool:
+        return any(chunk.section_path and " > " in chunk.section_path for chunk in chunks)
+
+    def _group_training_module_units(self, chunks: list[Chunk]) -> list[dict]:
+        grouped: dict[str, dict] = {}
+        ordered_chunks = sorted(chunks, key=lambda item: item.chunk_index)
+        current_root: str | None = None
+
+        for chunk in ordered_chunks:
+            text = (chunk.text or "").strip()
+            if not text:
+                continue
+
+            section_path = chunk.section_path or ""
+            root_section = section_path.split(" > ")[0].strip() if section_path else ""
+            if not root_section:
+                root_section = f"chunk_{chunk.chunk_index}"
+            elif self._is_media_like_training_section(root_section) and current_root:
+                root_section = current_root
+            else:
+                current_root = root_section
+
+            group = grouped.setdefault(
+                root_section,
+                {
+                    "text_parts": [],
+                    "section_path": root_section,
+                    "chunk_index": chunk.chunk_index,
+                },
+            )
+            group["text_parts"].append(text)
+
+        units = []
+        for root_section, group in grouped.items():
+            combined_text = "\n\n".join(group["text_parts"]).strip()
+            if not combined_text:
+                continue
+            units.append(
+                {
+                    "text": combined_text,
+                    "section_path": group["section_path"],
+                    "chunk_index": group["chunk_index"],
+                }
+            )
+
+        return units
+
+    def _is_media_like_training_section(self, section_name: str) -> bool:
+        normalized = section_name.lower()
+        return (
+            normalized.startswith("titelbild:")
+            or normalized.startswith("anwendungsbilder:")
+            or normalized.startswith("medien:")
+            or normalized.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".tif", ".tiff"))
+        )
 
     def _build_context(self, document: Document, unit: dict, chunk_total: int) -> ExtractionContext:
         return ExtractionContext(

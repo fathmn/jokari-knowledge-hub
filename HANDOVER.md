@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-03-26 — Reales Benchmark-Dokument validiert und DOCX-XML-Fallback gehaertet (Codex)
+
+**Kontext:** Nach dem ersten Phase-1-Block lag das echte Benchmark-Dokument `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx` lokal vor. Die wichtigste Anschlussfrage war, ob der neue Pfad nicht nur mit synthetischen Testdaten, sondern auch mit der realen Datei und produktivem Claude-Verhalten tragfaehig ist.
+
+### Backend: echter Benchmark und Fallback-Haertung
+
+#### 0.1 Reale Benchmark-Datei traf auf defekte Word-Referenz
+- **Befund:** `python-docx` scheiterte bei der Originaldatei mit einer defekten `word/NULL`-Referenz.
+- **Risiko alt:** Der bisherige Fallback haette in so einem Fall nur rohen Volltext extrahiert und die Dokumentstruktur weitgehend verloren.
+- **Datei:** `backend/app/parsers/docx_parser.py`
+
+#### 0.2 XML-Fallback jetzt strukturerhaltend statt Volltext-only
+- **Fix:** Der DOCX-Fallback liest `word/document.xml` jetzt blockweise und rekonstruiert Paragraphen, Tabellen, Listen, Inline-Headings und Metadaten direkt aus dem XML.
+- **Neu:** Subsections wie `Beschreibung:`, `Weitere Informationen:` oder `Titelbild:` werden im Fallback bewusst als Strukturmarker erkannt.
+- **Effekt:** Auch beschaedigte DOCX-Dateien bleiben fuer Chunking und Extraktion fachlich segmentierbar.
+- **Datei:** `backend/app/parsers/docx_parser.py`
+
+#### 0.3 Training-Module werden fuer mehrteilige Sales-Unterlagen jetzt auf Root-Sections gruppiert
+- **Fix:** Der Ingestion-Pfad gruppiert `sales / training_module`-Chunks vor der Extraktion entlang ihrer Top-Level-Sections.
+- **Neu:** Medien-/Bild-Unterabschnitte werden dem letzten fachlich sinnvollen Produktblock zugeschlagen statt als eigener Extraktions-Unit zu enden.
+- **Effekt:** Die Originaldatei geht mit `17` fachlichen Units statt mit vielen kleinteiligen Artefakt-Units an Claude.
+- **Datei:** `backend/app/services/ingestion.py`
+
+### Tests und produktionsnahe Verifikation
+
+#### 1.1 Regressionstests erweitert
+- **Neu:** Parser-Test fuer den XML-Fallback mit strukturierter Section-Rekonstruktion.
+- **Angepasst:** Ingestion-Test auf die neue Grouping-Logik fuer `training_module`.
+- **Dateien:** `backend/tests/test_parsers.py`, `backend/tests/test_ingestion.py`
+
+#### 1.2 Voller Backend-Testlauf gruen
+- **Verifiziert:** `backend/venv/bin/pytest -q backend/tests`
+- **Ergebnis:** `32 passed`
+
+#### 1.3 Echter Claude-Simulationslauf auf dem Originaldokument
+- **Datei:** `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx`
+- **Umgebung:** Railway-Produktions-Env (`llm_provider=claude`, `anthropic_model=claude-sonnet-4-6`) mit lokalem Code-Stand, ohne DB-Schreibzugriff.
+- **Ergebnis Parser/Chunking:** `125` Sections, `129` Chunks, danach `17` fachliche Extraktions-Units.
+- **Ergebnis Extraktion:** `17` aggregierte Records, `0` finale `needs_review`, `1` Stub-Fallback nur fuer den Einleitungsblock `Das Entmanteler-Prinzip`.
+- **Beispiel-Titel:** `Universal No. 12`, `JOKARI XL`, `SECURA No. 15 – Innendosen-Entmanteler`, `JOKARI Allrounder`, `UNI-PLUS`, `CAN-Strip`.
+- **Beispiel-Produktcodes:** `30120`, `30125`, `30155`, `30900`, `30400`, `30140`, `30600`, `30110`, `30500`, `30161`, `30160`, `30700`, `30800`, `30810`, `30013`
+
+### Offener Restpunkt nach diesem Block
+
+#### 2.1 UI-/DB-Smoke in Produktion noch als letzter Endnachweis
+- Der produktionsnahe Claude-Lauf wurde bewusst ohne DB-Schreibzugriff ausgefuehrt.
+- Als letzter Live-Nachweis bleibt ein gezielter Upload in der produktiven UI mit anschliessender Kontrolle von Dokumentstatus, gespeicherten Chunks, Records und Review-Ansicht.
+
 ## 2026-03-26 — Phase 1 fuer Dokumentstruktur und Extraktionsqualitaet umgesetzt und deployed (Codex)
 
 **Kontext:** Phase 1 aus `INTERNAL_IMPLEMENTATION_PLAN.md` wurde auf dem internen Produktpfad end-to-end umgesetzt. Der Fokus lag ausschliesslich auf Upload, Extraktion, Review-Vorbereitung und Datenqualitaet fuer grosse interne Fachdokumente. Website-Chatbot, PIM und externe Integrationen wurden bewusst nicht angefasst.
