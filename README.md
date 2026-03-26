@@ -184,6 +184,9 @@ Weitere relevante Dateien:
 - `HANDOVER.md`
   - chronologisches Protokoll der Änderungen
   - nützlich für Ursachenanalyse und Verlauf
+- `PROJECT_FLOW.md`
+  - End-to-End-Ablauf als Diagramm
+  - Soll-/Ist-Abgleich gegen den internen Implementierungsplan
 - `CLAUDE.md`
   - technische Zusatznotizen und Infrastrukturkontext
 

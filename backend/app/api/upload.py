@@ -1,3 +1,5 @@
+import traceback
+
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -22,6 +24,7 @@ def process_document_background(document_id: str):
         service.process_document(UUID(document_id))
     except Exception as e:
         print(f"Error processing document {document_id}: {e}")
+        traceback.print_exc()
     finally:
         db.close()
 

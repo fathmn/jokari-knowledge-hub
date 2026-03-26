@@ -6,6 +6,52 @@
 
 ---
 
+## 2026-03-26 — Extraktions-Haenger im Produktionspfad gehaertet und Projektablauf dokumentiert (Codex)
+
+**Kontext:** Ein realer Re-Upload des Benchmark-Dokuments blieb in Produktion auf `extracting` stehen. Das Dokument war bereits geparst und gechunkt, aber es wurden keine Records mehr geschrieben. Zusaetzlich wurde eine dauerhafte Ablaufdokumentation fuer den Gesamtprozess benoetigt.
+
+### Produktionsbug: haengender Extraktionsjob
+
+#### 0.1 Reales Produktionssymptom eingegrenzt
+- **Betroffenes Dokument:** `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx`
+- **Befund in DB:** `129` Chunks vorhanden, `0` Records, Status blieb auf `extracting`.
+- **Befund im Log:** `Can't reconnect until invalid transaction is rolled back`
+
+#### 0.2 Ingestion-Fehlerpfad jetzt transaktionssicherer
+- **Fix:** Vor Status-/Audit-Updates im Exception-Pfad wird jetzt immer sauber `rollback()` ausgefuehrt.
+- **Effekt:** Ein DB-Fehler in der Persistenzphase friert den Dokumentstatus nicht mehr still auf `extracting` ein.
+- **Datei:** `backend/app/services/ingestion.py`
+
+#### 0.3 Persistenzphase nach langen Claude-Laeufen frisch gestartet
+- **Fix:** Vor dem Schreiben aggregierter Records wird die Session explizit bereinigt.
+- **Effekt:** Lange LLM-Phasen laufen nicht mehr in einen verschmutzten Session-Zustand hinein.
+- **Datei:** `backend/app/services/ingestion.py`
+
+#### 0.4 LLM-Timeout mit Stub-Fallback
+- **Fix:** Pro Extraktions-Unit gilt jetzt ein konfigurierbares LLM-Timeout (`llm_timeout_seconds`, Default `120s`).
+- **Verhalten:** Bei Timeout auf dem Claude-Pfad wird auf den lokalen Stub-Fallback gewechselt statt unbegrenzt haengen zu bleiben.
+- **Dateien:** `backend/app/config.py`, `backend/app/services/ingestion.py`
+
+#### 0.5 Background-Worker loggt jetzt echte Tracebacks
+- **Fix:** Der Upload-Background-Task schreibt bei Fehlern nicht mehr nur die Fehlermeldung, sondern den ganzen Traceback.
+- **Effekt:** Produktionsfehler lassen sich schneller und sauberer analysieren.
+- **Datei:** `backend/app/api/upload.py`
+
+### Tests und Doku
+
+#### 1.1 Ingestion-Tests erweitert
+- **Neu:** Test fuer Rollback + Statuswechsel auf `extraction_failed` bei Fehlern im Hauptlauf.
+- **Neu:** Test fuer Stub-Fallback bei LLM-Timeout.
+- **Datei:** `backend/tests/test_ingestion.py`
+
+#### 1.2 Voller Backend-Testlauf gruen
+- **Verifiziert:** `backend/venv/bin/pytest -q backend/tests`
+- **Ergebnis:** `34 passed`
+
+#### 1.3 Gesamtprozess als Diagramm dokumentiert
+- **Neu:** `PROJECT_FLOW.md`
+- **Enthaelt:** End-to-End-Diagramme, Status-Lifecycle, Plan-Abgleich und offene Luecken fuer produktionsreife Stabilitaet.
+
 ## 2026-03-26 — Reales Benchmark-Dokument validiert und DOCX-XML-Fallback gehaertet (Codex)
 
 **Kontext:** Nach dem ersten Phase-1-Block lag das echte Benchmark-Dokument `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx` lokal vor. Die wichtigste Anschlussfrage war, ob der neue Pfad nicht nur mit synthetischen Testdaten, sondern auch mit der realen Datei und produktivem Claude-Verhalten tragfaehig ist.

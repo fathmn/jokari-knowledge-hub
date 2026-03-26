@@ -54,13 +54,17 @@ class IngestionService:
                 {"chunks_created": len(chunks)},
             )
         except Exception as exc:
-            self._update_status(document, DocumentStatus.EXTRACTION_FAILED, str(exc))
-            self._create_audit_log(
-                "ingestion_failed",
-                "Document",
-                document.id,
-                {"error": str(exc)},
-            )
+            self._safe_rollback()
+            try:
+                self._update_status(document, DocumentStatus.EXTRACTION_FAILED, str(exc))
+                self._create_audit_log(
+                    "ingestion_failed",
+                    "Document",
+                    document.id,
+                    {"error": str(exc)},
+                )
+            except Exception:
+                self._safe_rollback()
             raise
 
     def _update_status(self, document: Document, status: DocumentStatus, error: str = None):
@@ -142,19 +146,33 @@ class IngestionService:
             for candidate in candidates:
                 self._aggregate_record(candidate, aggregated_records, aggregated_index)
 
+        # Start the write phase with a clean session after potentially long LLM calls.
+        self._safe_rollback()
         records_created = 0
         for candidate in aggregated_records:
-            self._create_record_from_extraction(
-                document=document,
-                data=candidate["data"],
-                schema_type=candidate["schema_type"],
-                evidence_pointers=candidate["evidence_pointers"],
-                chunks=chunks,
-                confidence=candidate["confidence"],
-                needs_review=candidate["needs_review"],
-                source_section=candidate["source_section"],
-            )
-            records_created += 1
+            try:
+                self._create_record_from_extraction(
+                    document=document,
+                    data=candidate["data"],
+                    schema_type=candidate["schema_type"],
+                    evidence_pointers=candidate["evidence_pointers"],
+                    chunks=chunks,
+                    confidence=candidate["confidence"],
+                    needs_review=candidate["needs_review"],
+                    source_section=candidate["source_section"],
+                )
+                records_created += 1
+            except Exception as exc:
+                self._safe_rollback()
+                record_label = (
+                    candidate["data"].get("title")
+                    or candidate["data"].get("name")
+                    or candidate["source_section"]
+                    or candidate["schema_type"]
+                )
+                raise RuntimeError(
+                    f"Fehler beim Persistieren von Record '{record_label}': {exc}"
+                ) from exc
 
         if stub_fallback_count:
             self._create_audit_log(
@@ -270,7 +288,25 @@ class IngestionService:
         )
 
     def _extract_unit(self, extractor, schema, context: ExtractionContext, text: str, loop) -> tuple:
-        result = loop.run_until_complete(extractor.extract(text, schema, context))
+        settings = get_settings()
+        timeout_seconds = max(float(getattr(settings, "llm_timeout_seconds", 120.0)), 1.0)
+
+        try:
+            result = loop.run_until_complete(
+                asyncio.wait_for(
+                    extractor.extract(text, schema, context),
+                    timeout=timeout_seconds,
+                )
+            )
+        except asyncio.TimeoutError:
+            if settings.llm_provider == "claude":
+                fallback_result = loop.run_until_complete(LocalStubExtractor().extract(text, schema, context))
+                if fallback_result.records or fallback_result.data:
+                    return fallback_result, True
+            raise RuntimeError(
+                f"LLM-Timeout nach {timeout_seconds:.0f}s fuer Chunk {context.chunk_index + 1}/{context.chunk_total}"
+            )
+
         if self._should_use_stub_fallback(result):
             fallback_result = loop.run_until_complete(LocalStubExtractor().extract(text, schema, context))
             if fallback_result.records or fallback_result.data:
@@ -544,6 +580,13 @@ class IngestionService:
             return False
 
         return not result.records and not result.data
+
+    def _safe_rollback(self):
+        if not self.db:
+            return
+        rollback = getattr(self.db, "rollback", None)
+        if callable(rollback):
+            rollback()
 
     def _create_audit_log(
         self,
