@@ -31,9 +31,9 @@ const wissensbereiche = [
 ]
 
 const tags = [
-  { name: 'Vertrieb', color: 'bg-accent-500' },
-  { name: 'Support', color: 'bg-primary-500' },
-  { name: 'Produkt', color: 'bg-accent-300' },
+  { name: 'Vertrieb', value: 'sales', color: 'bg-accent-500' },
+  { name: 'Support', value: 'support', color: 'bg-primary-500' },
+  { name: 'Produkt', value: 'product', color: 'bg-accent-300' },
 ]
 
 interface SidebarProps {
@@ -143,7 +143,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             {tags.map((tag) => (
               <Link
                 key={tag.name}
-                href={`/dokumente?department=${tag.name.toLowerCase()}`}
+                href={`/dokumente?department=${tag.value}`}
                 onClick={onClose}
                 className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-accent-500
                            hover:bg-primary-50 rounded-lg w-full text-left transition-colors"

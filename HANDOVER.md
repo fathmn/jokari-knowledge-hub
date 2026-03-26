@@ -29,6 +29,12 @@
 - **Effekt:** Die Originaldatei geht mit `17` fachlichen Units statt mit vielen kleinteiligen Artefakt-Units an Claude.
 - **Datei:** `backend/app/services/ingestion.py`
 
+#### 0.4 Produktionsbug im Dokumentenfilter identifiziert und behoben
+- **Befund:** Das Frontend verlinkte aus der Sidebar mit `department=vertrieb`, waehrend das Backend nur Enum-Werte wie `sales` akzeptiert.
+- **Folge alt:** `GET /api/documents?page=1&limit=20&department=vertrieb` lief produktiv auf `422` und fuehrte im UI zum Banner `Fehler beim Laden der Dokumente`.
+- **Fix:** Sidebar-Tags nutzen jetzt die echten Backend-Werte; die Dokumentenseite normalisiert zusaetzlich alte deutsche Query-Werte wie `vertrieb`, `produkt` oder `recht`.
+- **Dateien:** `frontend/components/Sidebar.tsx`, `frontend/app/dokumente/page.tsx`
+
 ### Tests und produktionsnahe Verifikation
 
 #### 1.1 Regressionstests erweitert

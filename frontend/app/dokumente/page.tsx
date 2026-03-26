@@ -26,6 +26,14 @@ interface DocumentListResponse {
   pages: number
 }
 
+const DEPARTMENT_ALIASES: Record<string, string> = {
+  vertrieb: 'sales',
+  support: 'support',
+  marketing: 'marketing',
+  produkt: 'product',
+  recht: 'legal',
+}
+
 function DokumenteContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -34,7 +42,9 @@ function DokumenteContent() {
   const [error, setError] = useState<string | null>(null)
 
   const page = Number(searchParams.get('page') || '1')
-  const departmentFilter = searchParams.get('department') || ''
+  const rawDepartmentFilter = searchParams.get('department') || ''
+  const departmentFilter =
+    DEPARTMENT_ALIASES[rawDepartmentFilter.toLowerCase()] || rawDepartmentFilter
 
   const setPage = (p: number) => {
     const params = new URLSearchParams(searchParams.toString())
