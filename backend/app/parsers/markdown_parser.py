@@ -6,7 +6,7 @@ class MarkdownParser(DocumentParser):
     """Parser for Markdown documents."""
 
     # Regex for markdown headings
-    HEADING_PATTERN = re.compile(r'^(#{1,6})\s+(.+)$', re.MULTILINE)
+    HEADING_PATTERN = re.compile(r'^\s*(#{1,6})\s+(.+)$', re.MULTILINE)
 
     def supports(self, file_extension: str) -> bool:
         return file_extension.lower() in ['.md', '.markdown']

@@ -22,6 +22,9 @@ class ExtractionContext:
     document_id: str
     filename: str
     chunk_index: int = 0
+    chunk_total: int = 1
+    section_path: Optional[str] = None
+    document_version: Optional[str] = None
 
 
 @dataclass

@@ -8,7 +8,7 @@ from app.models.document import Department
 class TestApprovalLogic:
     """Tests for approval workflow."""
 
-    def test_approve_sets_status(self, db_session):
+    def test_approve_sets_status(self):
         """Test that approval changes status correctly."""
         # This is a mock test since we don't have full DB setup
         record = MagicMock(spec=Record)

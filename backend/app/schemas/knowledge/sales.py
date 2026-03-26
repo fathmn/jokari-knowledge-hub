@@ -4,15 +4,19 @@ from app.schemas.knowledge.base import KnowledgeSchema
 
 
 class TrainingModule(KnowledgeSchema):
-    """Sales training module schema."""
-    _required_fields: ClassVar[list[str]] = ["title", "version", "content"]
+    """Sales training module or product knowledge unit schema."""
+    _required_fields: ClassVar[list[str]] = ["title", "content"]
     _primary_key_fields: ClassVar[list[str]] = ["title", "version"]
 
     title: str = Field(..., description="Titel des Trainingsmoduls")
-    version: str = Field(..., description="Versionsnummer (z.B. '1.0', '2.1')")
+    version: Optional[str] = Field(None, description="Dokumentstand oder Versionsnummer")
     content: str = Field(..., description="Hauptinhalt des Trainings")
     objectives: list[str] = Field(default_factory=list, description="Lernziele")
     target_audience: Optional[str] = Field(None, description="Zielgruppe")
+    product_code: Optional[str] = Field(None, description="Artikelnummer oder Produktcode")
+    product_category: Optional[str] = Field(None, description="Produktgruppe oder Themenkategorie")
+    key_points: list[str] = Field(default_factory=list, description="Kernaussagen oder Verkaufsargumente")
+    related_products: list[str] = Field(default_factory=list, description="Verwandte Produkte oder Varianten")
 
 
 class Objection(KnowledgeSchema):

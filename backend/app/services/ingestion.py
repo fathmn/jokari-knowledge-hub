@@ -1,22 +1,23 @@
-import os
 import asyncio
+import os
 from uuid import UUID
-from datetime import datetime
+
 from sqlalchemy.orm import Session
-from app.models.document import Document, DocumentStatus, DocType
-from app.models.chunk import Chunk
-from app.models.record import Record, RecordStatus
-from app.models.evidence import Evidence
+
+from app.config import get_settings
+from app.extractors import ExtractionContext, get_extractor
+from app.extractors.stub import LocalStubExtractor
 from app.models.audit_log import AuditLog
+from app.models.chunk import Chunk
+from app.models.document import DocType, Document, DocumentStatus
+from app.models.evidence import Evidence
+from app.models.record import Record, RecordStatus
 from app.parsers import get_parser
-from app.services.storage import get_storage_service
+from app.schemas.knowledge.registry import get_schema_registry
 from app.services.chunking import ChunkingService
 from app.services.completeness import CompletenessService
 from app.services.merge import MergeService
-from app.extractors import get_extractor, ExtractionContext
-from app.extractors.stub import LocalStubExtractor
-from app.config import get_settings
-from app.schemas.knowledge.registry import get_schema_registry
+from app.services.storage import get_storage_service
 
 
 class IngestionService:
@@ -37,34 +38,28 @@ class IngestionService:
             raise ValueError(f"Dokument nicht gefunden: {document_id}")
 
         try:
-            # Step 1: Parse document
             self._update_status(document, DocumentStatus.PARSING)
             parsed_doc = self._parse_document(document)
 
-            # Step 2: Create chunks
             chunks = self._create_chunks(document, parsed_doc)
 
-            # Step 3: Extract records
             self._update_status(document, DocumentStatus.EXTRACTING)
             self._extract_records(document, chunks, parsed_doc.raw_text)
 
-            # Step 4: Complete
             self._update_status(document, DocumentStatus.PENDING_REVIEW)
-
             self._create_audit_log(
                 "ingestion_complete",
                 "Document",
                 document.id,
-                {"chunks_created": len(chunks)}
+                {"chunks_created": len(chunks)},
             )
-
-        except Exception as e:
-            self._update_status(document, DocumentStatus.EXTRACTION_FAILED, str(e))
+        except Exception as exc:
+            self._update_status(document, DocumentStatus.EXTRACTION_FAILED, str(exc))
             self._create_audit_log(
                 "ingestion_failed",
                 "Document",
                 document.id,
-                {"error": str(e)}
+                {"error": str(exc)},
             )
             raise
 
@@ -77,14 +72,12 @@ class IngestionService:
 
     def _parse_document(self, document: Document):
         """Parse the document file."""
-        # Download to temp file
         temp_path = self.storage.download_to_temp(document.file_path)
 
         try:
             parser = get_parser(temp_path)
             return parser.parse(temp_path)
         finally:
-            # Clean up temp file
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
@@ -93,18 +86,18 @@ class IngestionService:
         text_chunks = self.chunking.create_chunks(parsed_doc)
         db_chunks = []
 
-        for tc in text_chunks:
-            embedding = self.chunking.generate_dummy_embedding(tc.text)
+        for text_chunk in text_chunks:
+            embedding = self.chunking.generate_dummy_embedding(text_chunk.text)
 
             chunk = Chunk(
                 document_id=document.id,
-                section_path=tc.section_path,
-                text=tc.text,
+                section_path=text_chunk.section_path,
+                text=text_chunk.text,
                 embedding=embedding,
-                confidence=tc.confidence,
-                start_offset=tc.start_offset,
-                end_offset=tc.end_offset,
-                chunk_index=tc.chunk_index
+                confidence=text_chunk.confidence,
+                start_offset=text_chunk.start_offset,
+                end_offset=text_chunk.end_offset,
+                chunk_index=text_chunk.chunk_index,
             )
             self.db.add(chunk)
             db_chunks.append(chunk)
@@ -113,78 +106,308 @@ class IngestionService:
         return db_chunks
 
     def _extract_records(self, document: Document, chunks: list[Chunk], full_text: str):
-        """Extract structured records from chunks. Supports multi-record extraction."""
+        """Extract structured records from document chunks and merge duplicate findings."""
         extractor = get_extractor()
         schema = self.registry.get_schema(document.doc_type)
+        extraction_units = self._build_extraction_units(chunks, full_text)
+        aggregated_records: list[dict] = []
+        aggregated_index: dict[str, int] = {}
+        stub_fallback_count = 0
 
-        context = ExtractionContext(
-            department=document.department.value,
-            doc_type=document.doc_type.value,
-            document_id=str(document.id),
-            filename=document.filename,
-            chunk_index=0
-        )
+        loop = self._get_event_loop()
 
-        # Run extraction (sync wrapper for async)
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        result = loop.run_until_complete(
-            extractor.extract(full_text, schema, context)
-        )
-
-        if self._should_use_stub_fallback(result):
-            fallback_result = loop.run_until_complete(
-                LocalStubExtractor().extract(full_text, schema, context)
+        for unit in extraction_units:
+            context = self._build_context(
+                document=document,
+                unit=unit,
+                chunk_total=len(extraction_units),
             )
-            if fallback_result.records or fallback_result.data:
-                result = fallback_result
-                self._create_audit_log(
-                    "extraction_fallback_used",
-                    "Document",
-                    document.id,
-                    {"provider": "stub"}
-                )
+            result, used_stub = self._extract_unit(
+                extractor=extractor,
+                schema=schema,
+                context=context,
+                text=unit["text"],
+                loop=loop,
+            )
+            if used_stub:
+                stub_fallback_count += 1
+
+            candidates = self._normalize_result(
+                document=document,
+                default_schema_type=schema.__name__,
+                result=result,
+                context=context,
+            )
+
+            for candidate in candidates:
+                self._aggregate_record(candidate, aggregated_records, aggregated_index)
 
         records_created = 0
-
-        # Check for multi-record extraction
-        if result.records:
-            # Multi-record mode: process each extracted record
-            for extracted_record in result.records:
-                self._create_record_from_extraction(
-                    document=document,
-                    data=extracted_record.data,
-                    schema_type=extracted_record.schema_type or schema.__name__,
-                    evidence_pointers=extracted_record.evidence,
-                    chunks=chunks,
-                    confidence=extracted_record.confidence,
-                    source_section=extracted_record.source_section
-                )
-                records_created += 1
-
-        elif result.data:
-            # Single record mode (legacy)
+        for candidate in aggregated_records:
             self._create_record_from_extraction(
                 document=document,
-                data=result.data,
-                schema_type=schema.__name__,
-                evidence_pointers=result.evidence,
+                data=candidate["data"],
+                schema_type=candidate["schema_type"],
+                evidence_pointers=candidate["evidence_pointers"],
                 chunks=chunks,
-                confidence=result.confidence,
-                needs_review=result.needs_review or not result.valid
+                confidence=candidate["confidence"],
+                needs_review=candidate["needs_review"],
+                source_section=candidate["source_section"],
             )
             records_created += 1
+
+        if stub_fallback_count:
+            self._create_audit_log(
+                "extraction_fallback_used",
+                "Document",
+                document.id,
+                {"provider": "stub", "units": stub_fallback_count},
+            )
 
         self._create_audit_log(
             "records_extracted",
             "Document",
             document.id,
-            {"records_created": records_created}
+            {
+                "records_created": records_created,
+                "extraction_units": len(extraction_units),
+            },
         )
+
+    def _build_extraction_units(self, chunks: list[Chunk], full_text: str) -> list[dict]:
+        if not chunks:
+            return [{"text": full_text, "section_path": "", "chunk_index": 0}]
+
+        if len(chunks) == 1:
+            chunk = chunks[0]
+            return [
+                {
+                    "text": chunk.text or full_text,
+                    "section_path": chunk.section_path or "",
+                    "chunk_index": chunk.chunk_index,
+                }
+            ]
+
+        return [
+            {
+                "text": chunk.text,
+                "section_path": chunk.section_path or "",
+                "chunk_index": chunk.chunk_index,
+            }
+            for chunk in sorted(chunks, key=lambda item: item.chunk_index)
+            if chunk.text and chunk.text.strip()
+        ]
+
+    def _build_context(self, document: Document, unit: dict, chunk_total: int) -> ExtractionContext:
+        return ExtractionContext(
+            department=document.department.value,
+            doc_type=document.doc_type.value,
+            document_id=str(document.id),
+            filename=document.filename,
+            chunk_index=unit["chunk_index"],
+            chunk_total=chunk_total,
+            section_path=unit.get("section_path") or None,
+            document_version=self._document_version(document),
+        )
+
+    def _extract_unit(self, extractor, schema, context: ExtractionContext, text: str, loop) -> tuple:
+        result = loop.run_until_complete(extractor.extract(text, schema, context))
+        if self._should_use_stub_fallback(result):
+            fallback_result = loop.run_until_complete(LocalStubExtractor().extract(text, schema, context))
+            if fallback_result.records or fallback_result.data:
+                return fallback_result, True
+        return result, False
+
+    def _normalize_result(
+        self,
+        document: Document,
+        default_schema_type: str,
+        result,
+        context: ExtractionContext,
+    ) -> list[dict]:
+        candidates: list[dict] = []
+
+        if result.records:
+            for extracted_record in result.records:
+                prepared_data = self._prepare_data(
+                    document=document,
+                    data=extracted_record.data,
+                    source_section=extracted_record.source_section or context.section_path,
+                )
+                candidates.append(
+                    {
+                        "data": prepared_data,
+                        "schema_type": extracted_record.schema_type or default_schema_type,
+                        "evidence_pointers": extracted_record.evidence,
+                        "confidence": extracted_record.confidence,
+                        "needs_review": extracted_record.confidence < 0.5,
+                        "source_section": extracted_record.source_section or context.section_path,
+                    }
+                )
+
+        elif result.data:
+            prepared_data = self._prepare_data(
+                document=document,
+                data=result.data,
+                source_section=context.section_path,
+            )
+            candidates.append(
+                {
+                    "data": prepared_data,
+                    "schema_type": default_schema_type,
+                    "evidence_pointers": result.evidence,
+                    "confidence": result.confidence,
+                    "needs_review": result.needs_review or not result.valid,
+                    "source_section": context.section_path,
+                }
+            )
+
+        return [candidate for candidate in candidates if candidate["data"]]
+
+    def _prepare_data(self, document: Document, data: dict, source_section: str | None) -> dict:
+        prepared = dict(data or {})
+
+        if document.doc_type == DocType.TRAINING_MODULE:
+            title = prepared.get("title") or prepared.get("name") or self._section_leaf(source_section)
+            if title:
+                prepared["title"] = title.strip()
+
+            version = prepared.get("version") or self._document_version(document)
+            if version:
+                prepared["version"] = version
+
+            product_code = prepared.get("product_code") or prepared.get("artnr") or prepared.get("product_id")
+            if product_code:
+                prepared["product_code"] = str(product_code).strip()
+
+            for list_field in ("objectives", "key_points", "related_products"):
+                value = prepared.get(list_field)
+                if isinstance(value, str) and value.strip():
+                    prepared[list_field] = [value.strip()]
+
+        return prepared
+
+    def _aggregate_record(self, candidate: dict, aggregated_records: list[dict], aggregated_index: dict[str, int]):
+        batch_key = self._build_batch_key(
+            schema_type=candidate["schema_type"],
+            data=candidate["data"],
+            source_section=candidate["source_section"],
+        )
+        if not batch_key:
+            aggregated_records.append(candidate)
+            return
+
+        existing_index = aggregated_index.get(batch_key)
+        if existing_index is None:
+            aggregated_index[batch_key] = len(aggregated_records)
+            aggregated_records.append(candidate)
+            return
+
+        existing = aggregated_records[existing_index]
+        existing["data"] = self._merge_record_data(existing["data"], candidate["data"])
+        existing["evidence_pointers"] = self._merge_evidence(
+            existing["evidence_pointers"],
+            candidate["evidence_pointers"],
+        )
+        existing["confidence"] = max(existing["confidence"], candidate["confidence"])
+        existing["needs_review"] = existing["needs_review"] and candidate["needs_review"]
+        existing["source_section"] = existing["source_section"] or candidate["source_section"]
+
+    def _build_batch_key(self, schema_type: str, data: dict, source_section: str | None) -> str | None:
+        try:
+            schema = self.registry.get_schema_by_name(schema_type)
+        except ValueError:
+            schema = None
+
+        if schema:
+            primary_fields = schema.get_primary_key_fields()
+            if primary_fields and all(self._is_filled(data.get(field)) for field in primary_fields):
+                return f"{schema_type}:{schema.compute_primary_key(data)}"
+
+        fallback_key = source_section or data.get("title") or data.get("name")
+        if fallback_key:
+            return f"{schema_type}:section:{str(fallback_key).strip().lower()}"
+
+        return None
+
+    def _merge_record_data(self, base_data: dict, new_data: dict) -> dict:
+        merged = dict(base_data)
+
+        for field, new_value in new_data.items():
+            if not self._is_filled(new_value):
+                continue
+
+            current_value = merged.get(field)
+            if not self._is_filled(current_value):
+                merged[field] = new_value
+                continue
+
+            if isinstance(current_value, list) and isinstance(new_value, list):
+                merged[field] = list(dict.fromkeys([*current_value, *new_value]))
+                continue
+
+            if isinstance(current_value, dict) and isinstance(new_value, dict):
+                merged[field] = {**current_value, **{key: value for key, value in new_value.items() if self._is_filled(value)}}
+                continue
+
+            if isinstance(current_value, str) and isinstance(new_value, str):
+                if field == "content":
+                    if new_value in current_value:
+                        continue
+                    if current_value in new_value:
+                        merged[field] = new_value
+                    else:
+                        merged[field] = f"{current_value}\n\n{new_value}".strip()
+                    continue
+                if len(new_value) > len(current_value):
+                    merged[field] = new_value
+                continue
+
+            merged[field] = new_value
+
+        return merged
+
+    def _merge_evidence(self, current_items: list, new_items: list) -> list:
+        seen = set()
+        merged = []
+
+        for item in [*(current_items or []), *(new_items or [])]:
+            key = (item.field_path, item.excerpt, item.chunk_index)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+
+        return merged
+
+    def _document_version(self, document: Document) -> str | None:
+        if not document.version_date:
+            return None
+        return document.version_date.date().isoformat()
+
+    def _section_leaf(self, source_section: str | None) -> str | None:
+        if not source_section:
+            return None
+        return source_section.split(">")[-1].strip()
+
+    def _is_filled(self, value) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, str) and not value.strip():
+            return False
+        if isinstance(value, list) and not value:
+            return False
+        if isinstance(value, dict) and not value:
+            return False
+        return True
+
+    def _get_event_loop(self):
+        try:
+            return asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
 
     def _create_record_from_extraction(
         self,
@@ -195,42 +418,32 @@ class IngestionService:
         chunks: list[Chunk],
         confidence: float = 0.5,
         needs_review: bool = False,
-        source_section: str = None
+        source_section: str = None,
     ):
         """Create a single record from extracted data."""
-
-        # Compute primary key
         primary_key = self.merge.compute_primary_key(document.doc_type, data)
 
-        # Check for existing record
         existing = self.merge.find_existing_record(
             self.db,
             schema_type,
-            primary_key
+            primary_key,
         )
 
         if existing:
-            # Create proposed update
             self.merge.create_proposed_update(
                 self.db,
                 existing,
                 data,
-                document.id
+                document.id,
             )
             return
 
-        # Calculate completeness
-        completeness = self.completeness.calculate_score(
-            document.doc_type,
-            data
-        )
+        completeness = self.completeness.calculate_score(document.doc_type, data)
 
-        # Determine status
         status = RecordStatus.PENDING
         if needs_review or confidence < 0.5:
             status = RecordStatus.NEEDS_REVIEW
 
-        # Add source section to data if available
         if source_section:
             data["_source_section"] = source_section
 
@@ -241,26 +454,25 @@ class IngestionService:
             primary_key=primary_key,
             data_json=data,
             completeness_score=completeness,
-            status=status
+            status=status,
         )
         self.db.add(record)
         self.db.commit()
         self.db.refresh(record)
 
-        # Create evidence entries
-        for ev in evidence_pointers:
+        for evidence_pointer in evidence_pointers:
             chunk = next(
-                (c for c in chunks if c.chunk_index == ev.chunk_index),
-                chunks[0] if chunks else None
+                (candidate for candidate in chunks if candidate.chunk_index == evidence_pointer.chunk_index),
+                chunks[0] if chunks else None,
             )
 
             evidence = Evidence(
                 record_id=record.id,
                 chunk_id=chunk.id if chunk else None,
-                field_path=ev.field_path,
-                excerpt=ev.excerpt[:1000] if ev.excerpt else None,  # Limit excerpt length
-                start_offset=ev.start_offset,
-                end_offset=ev.end_offset
+                field_path=evidence_pointer.field_path,
+                excerpt=evidence_pointer.excerpt[:1000] if evidence_pointer.excerpt else None,
+                start_offset=evidence_pointer.start_offset,
+                end_offset=evidence_pointer.end_offset,
             )
             self.db.add(evidence)
 
@@ -279,7 +491,7 @@ class IngestionService:
         action: str,
         entity_type: str,
         entity_id: UUID,
-        details: dict = None
+        details: dict = None,
     ):
         """Create an audit log entry."""
         log = AuditLog(
@@ -287,7 +499,7 @@ class IngestionService:
             entity_type=entity_type,
             entity_id=entity_id,
             actor="system",
-            details_json=details
+            details_json=details,
         )
         self.db.add(log)
         self.db.commit()

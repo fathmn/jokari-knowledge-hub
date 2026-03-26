@@ -1,6 +1,8 @@
 import pytest
 import tempfile
 import os
+from docx import Document as WordDocument
+from app.parsers.docx_parser import DocxParser
 from app.parsers.markdown_parser import MarkdownParser
 from app.parsers.csv_parser import CsvParser
 
@@ -89,5 +91,41 @@ class TestCsvParser:
             # Each row becomes a section
             assert len(result.sections) >= 2
             assert result.metadata['row_count'] == 2
+        finally:
+            os.unlink(temp_path)
+
+
+class TestDocxParser:
+    """Tests for DOCX parser heuristics."""
+
+    def test_parse_detects_heading_like_sections_without_word_styles(self):
+        parser = DocxParser()
+        doc = WordDocument()
+        doc.add_paragraph("Konzept Vertriebsschulung Entmanteler")
+        doc.add_paragraph("Das Entmanteler-Prinzip")
+        doc.add_paragraph(
+            "Dieses Prinzip beschreibt die saubere Vorbereitung verschiedener Kabeltypen "
+            "und erklaert die wichtigsten Verkaufsargumente fuer das Vertriebsteam."
+        )
+        doc.add_paragraph("JOKARI XL")
+        doc.add_paragraph(
+            "Der JOKARI XL eignet sich fuer groessere Durchmesser und wird in der Schulung "
+            "als eigene Produkteinheit mit Nutzenargumentation vorgestellt."
+        )
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as handle:
+            temp_path = handle.name
+
+        try:
+            doc.save(temp_path)
+            result = parser.parse(temp_path)
+
+            section_titles = [section.title for section in result.sections if section.title]
+            assert "Das Entmanteler-Prinzip" in section_titles
+            assert "JOKARI XL" in section_titles
+
+            principle_section = next(section for section in result.sections if section.title == "Das Entmanteler-Prinzip")
+            assert principle_section.content.startswith("Das Entmanteler-Prinzip")
+            assert "Verkaufsargumente" in principle_section.content
         finally:
             os.unlink(temp_path)

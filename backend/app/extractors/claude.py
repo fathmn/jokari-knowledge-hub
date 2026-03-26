@@ -38,7 +38,7 @@ class ClaudeExtractor(LLMExtractor):
         json_schema = schema.model_json_schema()
 
         system_prompt = self._build_system_prompt(schema_description, json_schema, context)
-        user_prompt = self._build_user_prompt(text)
+        user_prompt = self._build_user_prompt(text, context)
 
         errors = []
         last_response = None
@@ -147,20 +147,35 @@ class ClaudeExtractor(LLMExtractor):
         json_schema: dict,
         context: ExtractionContext
     ) -> str:
+        context_lines = [
+            f"- Abteilung: {context.department}",
+            f"- Dokumenttyp: {context.doc_type}",
+            f"- Datei: {context.filename}",
+            f"- Chunk: {context.chunk_index + 1} von {context.chunk_total}",
+        ]
+
+        if context.section_path:
+            context_lines.append(f"- Abschnitt: {context.section_path}")
+        if context.document_version:
+            context_lines.append(f"- Dokumentversion: {context.document_version}")
+
+        specific_instructions = self._build_doc_type_instructions(context)
+
         return f"""Du bist ein präziser Daten-Extraktions-Assistent für die Jokari Knowledge Hub Plattform.
 
 Deine Aufgabe ist es, strukturierte Informationen aus Dokumenten zu extrahieren.
 
 KONTEXT:
-- Abteilung: {context.department}
-- Dokumenttyp: {context.doc_type}
-- Datei: {context.filename}
+{chr(10).join(context_lines)}
 
 SCHEMA ZU EXTRAHIEREN:
 {schema_description}
 
 JSON SCHEMA:
 {json.dumps(json_schema, ensure_ascii=False, indent=2)}
+
+FACHLICHE AUSRICHTUNG:
+{specific_instructions}
 
 WICHTIGE REGELN:
 1. Extrahiere NUR Informationen, die explizit im Text vorhanden sind
@@ -169,6 +184,9 @@ WICHTIGE REGELN:
 4. Antworte NUR mit validem JSON im angegebenen Format
 5. Bei Listen: Extrahiere alle relevanten Einträge
 6. Bei fehlenden Pflichtfeldern: Setze sie auf leere Strings oder leere Listen
+7. Wenn dir nur ein Chunk eines groesseren Dokuments vorliegt, extrahiere nur Entitaeten, die in diesem Chunk fachlich ausreichend belegt sind
+8. Erzeuge KEINE Records fuer Inhaltsverzeichnisse, Trennerseiten, reine Bildplatzhalter oder leere Abschnittstitel
+9. Lege bei Multi-Record-Dokumenten pro fachlich klar abgegrenztem Abschnitt genau einen eigenen Record an
 
 AUSGABEFORMAT:
 Wenn das Dokument MEHRERE Entitäten enthält (z.B. mehrere Produkte, FAQs etc.):
@@ -180,10 +198,32 @@ Antworte mit einem JSON-Objekt mit:
 - "evidence": Eine Liste von Objekten mit "field" und "excerpt" für jeden belegten Wert
 """
 
-    def _build_user_prompt(self, text: str) -> str:
-        return f"""Extrahiere die strukturierten Daten aus folgendem Text:
+    def _build_doc_type_instructions(self, context: ExtractionContext) -> str:
+        if context.department == "sales" and context.doc_type == "training_module":
+            return """- Sales-Training-Unterlagen sind oft fachlich Multi-Produkt- oder Multi-Themen-Dokumente statt eines einzigen globalen Trainingsmoduls.
+- Erzeuge mehrere Records, wenn der Text mehrere Produkte, Prinzipien, Modelle oder Themenbloecke enthaelt.
+- Nutze `title` fuer den Namen des Produkts oder Themenblocks.
+- Nutze `content` fuer eine kompakte, fachliche Zusammenfassung des Abschnitts.
+- Nutze `version` fuer den Dokumentstand. Wenn im Abschnitt keine eigene Version genannt wird, uebernimm die bekannte Dokumentversion, falls vorhanden.
+- Nutze `product_code`, `product_category`, `key_points` und `related_products` nur, wenn der Text dafuer konkrete Signale liefert.
+- Lasse Agenda-, Einleitungs- oder Uebergangsabschnitte ohne echten Wissenswert aus."""
 
----
+        return "- Erzeuge nur Records fuer fachlich eigenstaendige Wissenseinheiten."
+
+    def _build_user_prompt(self, text: str, context: ExtractionContext) -> str:
+        scope_lines = []
+        if context.section_path:
+            scope_lines.append(f"Abschnittspfad: {context.section_path}")
+        if context.document_version:
+            scope_lines.append(f"Dokumentversion: {context.document_version}")
+
+        scope_hint = "\n".join(scope_lines)
+        if scope_hint:
+            scope_hint = f"{scope_hint}\n\n"
+
+        return f"""Extrahiere die strukturierten Daten aus folgendem Textausschnitt:
+
+{scope_hint}---
 {text}
 ---
 
