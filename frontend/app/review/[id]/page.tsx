@@ -53,11 +53,18 @@ interface RecordType {
     name?: string
     description?: string
     content?: string
+    version?: string
     artnr?: string
+    product_code?: string
+    product_category?: string
     kabeltypen?: string[]
     anwendung?: string[]
     features?: string[]
     medien?: string[]
+    objectives?: string[]
+    target_audience?: string
+    key_points?: string[]
+    related_products?: string[]
     question?: string
     answer?: string
     warnings?: string[]
@@ -102,7 +109,10 @@ const fieldLabels: { [key: string]: string } = {
   name: 'Name',
   description: 'Beschreibung',
   content: 'Inhalt',
+  version: 'Dokumentstand',
   artnr: 'Artikelnummer',
+  product_code: 'Produktcode',
+  product_category: 'Produktkategorie',
   kabeltypen: 'Kabeltypen',
   anwendung: 'Anwendungsschritte',
   features: 'Merkmale',
@@ -112,6 +122,8 @@ const fieldLabels: { [key: string]: string } = {
   warnings: 'Warnhinweise',
   objectives: 'Lernziele',
   target_audience: 'Zielgruppe',
+  key_points: 'Kernaussagen',
+  related_products: 'Verwandte Produkte',
   _source_section: 'Quellabschnitt',
   // Additional Jokari product fields
   anwendungsbild: 'Anwendungsbild',
@@ -142,6 +154,11 @@ const fieldLabels: { [key: string]: string } = {
   besonderheiten: 'Besonderheiten',
   kompatibilitaet: 'Kompatibilität',
   spezifikationen: 'Spezifikationen'
+}
+
+const getFieldLabel = (fieldPath: string) => {
+  const normalized = fieldPath.replace(/\[\d+\]/g, '')
+  return fieldLabels[normalized] || fieldLabels[fieldPath] || normalized.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export default function RecordDetailPage() {
@@ -372,10 +389,31 @@ export default function RecordDetailPage() {
 
   const data = record.data_json
   const title = data?.title || data?.name || data?.question || record.primary_key.split('|')[0] || 'Unbenannt'
+  const isTrainingModule = record.schema_type === 'TrainingModule'
+  const productCode = data?.artnr || data?.product_code
+  const primaryTextField = isTrainingModule ? 'content' : (data?.description !== undefined ? 'description' : 'content')
+  const primaryTextTitle = isTrainingModule ? 'Inhalt' : 'Beschreibung'
+  const primaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
+  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : data?.kabeltypen)
+    ? ((isTrainingModule ? data?.related_products : data?.kabeltypen) as string[])
+    : []
+  const relatedItemsField = isTrainingModule ? 'related_products' : 'kabeltypen'
+  const relatedItemsTitle = isTrainingModule ? 'Verwandte Produkte' : 'Kompatible Kabeltypen'
+  const stepItems: string[] = Array.isArray(isTrainingModule ? data?.objectives : data?.anwendung)
+    ? ((isTrainingModule ? data?.objectives : data?.anwendung) as string[])
+    : []
+  const stepItemsField = isTrainingModule ? 'objectives' : 'anwendung'
+  const stepItemsTitle = isTrainingModule ? 'Lernziele' : 'Anwendungsschritte'
+  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : data?.features)
+    ? ((isTrainingModule ? data?.key_points : data?.features) as string[])
+    : []
+  const featureItemsField = isTrainingModule ? 'key_points' : 'features'
+  const featureItemsTitle = isTrainingModule ? 'Kernaussagen & Verkaufsargumente' : 'Merkmale & Besonderheiten'
 
   // Fields to skip in "other fields" section
-  const handledFields = ['title', 'name', 'description', 'content', 'artnr', 'kabeltypen',
-    'anwendung', 'features', 'medien', 'question', 'answer', 'warnings', '_source_section', 'links']
+  const handledFields = ['title', 'name', 'description', 'content', 'version', 'artnr', 'product_code',
+    'product_category', 'kabeltypen', 'related_products', 'anwendung', 'objectives', 'features',
+    'key_points', 'medien', 'question', 'answer', 'warnings', '_source_section', 'links']
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
@@ -399,10 +437,10 @@ export default function RecordDetailPage() {
               <StatusBadge status={record.status as any} />
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{title}</h1>
-            {data?.artnr && (
+            {productCode && (
               <div className="flex items-center text-blue-600 font-mono mt-1 text-sm">
                 <Tag className="w-4 h-4 mr-1 shrink-0" />
-                <span className="truncate">Artikelnummer: {data.artnr}</span>
+                <span className="truncate">Produktcode: {productCode}</span>
               </div>
             )}
           </div>
@@ -445,8 +483,8 @@ export default function RecordDetailPage() {
           <span className="text-sm font-semibold">{record.evidence_items?.length || 0}</span>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-500 mb-1">Version</p>
-          <span className="text-sm font-semibold">{record.version}</span>
+          <p className="text-xs text-gray-500 mb-1">Dokumentstand</p>
+          <span className="text-sm font-semibold">{data?.version || '—'}</span>
         </div>
       </div>
 
@@ -455,15 +493,15 @@ export default function RecordDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Description */}
           <ContentCard
-            title="Beschreibung"
+            title={primaryTextTitle}
             icon={<FileText className="w-5 h-5" />}
             onEdit={() => {
-              setEditingField('description')
-              setEditingValue(data?.description || '')
+              setEditingField(primaryTextField)
+              setEditingValue(primaryTextValue)
             }}
             canEdit={record.status !== 'approved'}
           >
-            {editingField === 'description' ? (
+            {editingField === primaryTextField ? (
               <div>
                 <textarea
                   value={editingValue}
@@ -486,28 +524,28 @@ export default function RecordDetailPage() {
                   </button>
                 </div>
               </div>
-            ) : data?.description ? (
+            ) : primaryTextValue ? (
               <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                {data.description}
+                {primaryTextValue}
               </p>
             ) : (
-              <p className="text-gray-400 italic">Keine Beschreibung vorhanden. Klicken Sie zum Hinzufügen.</p>
+              <p className="text-gray-400 italic">Kein Inhalt vorhanden. Klicken Sie zum Hinzufügen.</p>
             )}
           </ContentCard>
 
-          {/* Cable Types */}
+          {/* Related items */}
           <ContentCard
-            title="Kompatible Kabeltypen"
-            icon={<Wrench className="w-5 h-5" />}
+            title={relatedItemsTitle}
+            icon={isTrainingModule ? <Package className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
             canEdit={record.status !== 'approved'}
           >
             <div className="flex flex-wrap gap-2">
-              {(data?.kabeltypen || []).map((kabel, i) => (
+              {relatedItems.map((item, i) => (
                 <span key={i} className="group px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
-                  {kabel}
+                  {item}
                   {record.status !== 'approved' && (
                     <button
-                      onClick={() => removeArrayItem('kabeltypen', i)}
+                      onClick={() => removeArrayItem(relatedItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-blue-400 hover:text-red-500"
                     >
                       <X className="w-3 h-3" />
@@ -519,20 +557,20 @@ export default function RecordDetailPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Neuer Kabeltyp..."
-                    value={editingField === 'kabeltypen' ? newArrayItem : ''}
-                    onFocus={() => setEditingField('kabeltypen')}
+                    placeholder={isTrainingModule ? 'Verwandtes Produkt...' : 'Neuer Kabeltyp...'}
+                    value={editingField === relatedItemsField ? newArrayItem : ''}
+                    onFocus={() => setEditingField(relatedItemsField)}
                     onChange={(e) => setNewArrayItem(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newArrayItem.trim()) {
-                        addArrayItem('kabeltypen', newArrayItem)
+                        addArrayItem(relatedItemsField, newArrayItem)
                       }
                     }}
                     className="px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm w-40 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
-                  {newArrayItem.trim() && editingField === 'kabeltypen' && (
+                  {newArrayItem.trim() && editingField === relatedItemsField && (
                     <button
-                      onClick={() => addArrayItem('kabeltypen', newArrayItem)}
+                      onClick={() => addArrayItem(relatedItemsField, newArrayItem)}
                       className="p-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                     >
                       <Plus className="w-4 h-4" />
@@ -545,12 +583,12 @@ export default function RecordDetailPage() {
 
           {/* Application Steps */}
           <ContentCard
-            title="Anwendungsschritte"
+            title={stepItemsTitle}
             icon={<List className="w-5 h-5" />}
             canEdit={record.status !== 'approved'}
           >
             <ol className="space-y-3">
-              {(data?.anwendung || []).map((step, i) => (
+              {stepItems.map((step, i) => (
                 <li key={i} className="flex items-start group">
                   <span className="flex-shrink-0 w-7 h-7 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-semibold mr-3">
                     {i + 1}
@@ -558,7 +596,7 @@ export default function RecordDetailPage() {
                   <span className="text-gray-700 pt-0.5 flex-1">{step}</span>
                   {record.status !== 'approved' && (
                     <button
-                      onClick={() => removeArrayItem('anwendung', i)}
+                      onClick={() => removeArrayItem(stepItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-2"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -570,24 +608,24 @@ export default function RecordDetailPage() {
             {record.status !== 'approved' && (
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
                 <span className="flex-shrink-0 w-7 h-7 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-sm">
-                  {(data?.anwendung?.length || 0) + 1}
+                  {stepItems.length + 1}
                 </span>
                 <input
                   type="text"
-                  placeholder="Neuen Schritt hinzufügen..."
-                  value={editingField === 'anwendung' ? newArrayItem : ''}
-                  onFocus={() => setEditingField('anwendung')}
+                  placeholder={isTrainingModule ? 'Neues Lernziel hinzufügen...' : 'Neuen Schritt hinzufügen...'}
+                  value={editingField === stepItemsField ? newArrayItem : ''}
+                  onFocus={() => setEditingField(stepItemsField)}
                   onChange={(e) => setNewArrayItem(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && newArrayItem.trim()) {
-                      addArrayItem('anwendung', newArrayItem)
+                      addArrayItem(stepItemsField, newArrayItem)
                     }
                   }}
                   className="flex-1 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 />
-                {newArrayItem.trim() && editingField === 'anwendung' && (
+                {newArrayItem.trim() && editingField === stepItemsField && (
                   <button
-                    onClick={() => addArrayItem('anwendung', newArrayItem)}
+                    onClick={() => addArrayItem(stepItemsField, newArrayItem)}
                     className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -599,18 +637,18 @@ export default function RecordDetailPage() {
 
           {/* Features */}
           <ContentCard
-            title="Merkmale & Besonderheiten"
+            title={featureItemsTitle}
             icon={<CheckCircle className="w-5 h-5" />}
             canEdit={record.status !== 'approved'}
           >
             <ul className="space-y-2">
-              {(data?.features || []).map((feature, i) => (
+              {featureItems.map((feature, i) => (
                 <li key={i} className="flex items-start group">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 flex-1">{feature}</span>
                   {record.status !== 'approved' && (
                     <button
-                      onClick={() => removeArrayItem('features', i)}
+                      onClick={() => removeArrayItem(featureItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -624,20 +662,20 @@ export default function RecordDetailPage() {
                 <CheckCircle className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 <input
                   type="text"
-                  placeholder="Neues Merkmal hinzufügen..."
-                  value={editingField === 'features' ? newArrayItem : ''}
-                  onFocus={() => setEditingField('features')}
+                  placeholder={isTrainingModule ? 'Neue Kernaussage hinzufügen...' : 'Neues Merkmal hinzufügen...'}
+                  value={editingField === featureItemsField ? newArrayItem : ''}
+                  onFocus={() => setEditingField(featureItemsField)}
                   onChange={(e) => setNewArrayItem(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && newArrayItem.trim()) {
-                      addArrayItem('features', newArrayItem)
+                      addArrayItem(featureItemsField, newArrayItem)
                     }
                   }}
                   className="flex-1 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 />
-                {newArrayItem.trim() && editingField === 'features' && (
+                {newArrayItem.trim() && editingField === featureItemsField && (
                   <button
-                    onClick={() => addArrayItem('features', newArrayItem)}
+                    onClick={() => addArrayItem(featureItemsField, newArrayItem)}
                     className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                   >
                     <Plus className="w-4 h-4" />
@@ -836,7 +874,7 @@ export default function RecordDetailPage() {
                 (Array.isArray(value) && value.length === 0)) return null
 
             // Format the label nicely
-            const label = fieldLabels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            const label = getFieldLabel(key)
 
             return (
               <ContentCard key={key} title={label} icon={<Info className="w-5 h-5" />}>
@@ -936,7 +974,11 @@ export default function RecordDetailPage() {
                 </dd>
               </div>
               <div>
-                <dt className="text-gray-500">Version</dt>
+                <dt className="text-gray-500">Dokumentstand</dt>
+                <dd className="font-medium text-gray-900">{data?.version || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500">Datensatz-Version</dt>
                 <dd className="font-medium text-gray-900">{record.version}</dd>
               </div>
             </dl>
@@ -954,7 +996,7 @@ export default function RecordDetailPage() {
                 {record.evidence_items.map((ev) => (
                   <div key={ev.id} className="bg-gray-50 p-3 rounded-lg">
                     <span className="text-xs font-medium text-primary-600 uppercase">
-                      {fieldLabels[ev.field_path] || ev.field_path}
+                      {getFieldLabel(ev.field_path)}
                     </span>
                     <p className="text-xs text-gray-600 mt-1 line-clamp-3">
                       &ldquo;{ev.excerpt}&rdquo;
@@ -1116,7 +1158,7 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
           {Object.entries(val).map(([k, v]) => (
             <div key={k} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
               <span className="text-sm font-medium text-gray-500 min-w-[120px]">
-                {fieldLabels[k] || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                {getFieldLabel(k)}:
               </span>
               <span className="text-gray-700 flex-1">{renderValue(v)}</span>
             </div>
@@ -1141,7 +1183,7 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
                 Object.entries(item).map(([k, v]) => (
                   <div key={k} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 mb-2 last:mb-0">
                     <span className="text-sm font-medium text-gray-500 min-w-[120px]">
-                      {fieldLabels[k] || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}:
+                      {getFieldLabel(k)}:
                     </span>
                     <span className="text-gray-700 flex-1">{renderValue(v)}</span>
                   </div>
