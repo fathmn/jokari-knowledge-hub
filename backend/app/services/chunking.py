@@ -153,7 +153,7 @@ class ChunkingService:
         import hashlib
         hash_bytes = hashlib.sha256(text.encode()).digest()
 
-        # Expand to 1536 dimensions (OpenAI embedding size)
+        # Expand to 1536 dimensions to match the current pgvector column shape.
         embedding = []
         for i in range(1536):
             byte_idx = i % len(hash_bytes)

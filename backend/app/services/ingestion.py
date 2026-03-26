@@ -14,6 +14,8 @@ from app.services.chunking import ChunkingService
 from app.services.completeness import CompletenessService
 from app.services.merge import MergeService
 from app.extractors import get_extractor, ExtractionContext
+from app.extractors.stub import LocalStubExtractor
+from app.config import get_settings
 from app.schemas.knowledge.registry import get_schema_registry
 
 
@@ -134,6 +136,19 @@ class IngestionService:
             extractor.extract(full_text, schema, context)
         )
 
+        if self._should_use_stub_fallback(result):
+            fallback_result = loop.run_until_complete(
+                LocalStubExtractor().extract(full_text, schema, context)
+            )
+            if fallback_result.records or fallback_result.data:
+                result = fallback_result
+                self._create_audit_log(
+                    "extraction_fallback_used",
+                    "Document",
+                    document.id,
+                    {"provider": "stub"}
+                )
+
         records_created = 0
 
         # Check for multi-record extraction
@@ -250,6 +265,14 @@ class IngestionService:
             self.db.add(evidence)
 
         self.db.commit()
+
+    def _should_use_stub_fallback(self, result) -> bool:
+        """Fallback to heuristics only when Claude returns no usable records."""
+        settings = get_settings()
+        if settings.llm_provider != "claude":
+            return False
+
+        return not result.records and not result.data
 
     def _create_audit_log(
         self,

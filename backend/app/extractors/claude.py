@@ -23,7 +23,7 @@ class ClaudeExtractor(LLMExtractor):
     def __init__(self):
         settings = get_settings()
         self.client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        self.model = "claude-sonnet-4-20250514"
+        self.model = settings.anthropic_model or "claude-sonnet-4-6"
         self.max_retries = 2
 
     async def extract(
@@ -48,13 +48,14 @@ class ClaudeExtractor(LLMExtractor):
                 response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=4096,
+                    temperature=0,
                     system=system_prompt,
                     messages=[
                         {"role": "user", "content": user_prompt}
                     ]
                 )
 
-                last_response = response.content[0].text
+                last_response = self._extract_text_blocks(response)
 
                 # Parse JSON from response
                 extracted_data = self._parse_json_response(last_response)
@@ -67,9 +68,13 @@ class ClaudeExtractor(LLMExtractor):
                 if isinstance(extracted_data, dict) and "records" in extracted_data and isinstance(extracted_data["records"], list):
                     records = []
                     for rec_item in extracted_data["records"]:
-                        rec_data = rec_item.get("data", rec_item)
+                        rec_data, llm_evidence = self._extract_record_payload(rec_item)
+                        if not isinstance(rec_data, dict):
+                            continue
                         valid, _ = self._validate_with_schema(rec_data, schema)
-                        rec_evidence = self._extract_evidence(rec_data, text, context)
+                        rec_evidence = self._parse_llm_evidence(llm_evidence, context)
+                        if not rec_evidence:
+                            rec_evidence = self._extract_evidence(rec_data, text, context)
                         records.append(ExtractedRecord(
                             data=rec_data,
                             schema_type=schema.__name__,
@@ -90,12 +95,19 @@ class ClaudeExtractor(LLMExtractor):
                         )
 
                 # Single record response
+                extracted_data, llm_evidence = self._extract_record_payload(extracted_data)
+                if not isinstance(extracted_data, dict):
+                    errors.append(f"Versuch {attempt + 1}: JSON-Antwort enthält keine Datenstruktur")
+                    continue
+
                 # Validate with schema
                 valid, validation_errors = self._validate_with_schema(extracted_data, schema)
 
                 if valid:
                     # Extract evidence
-                    evidence = self._extract_evidence(extracted_data, text, context)
+                    evidence = self._parse_llm_evidence(llm_evidence, context)
+                    if not evidence:
+                        evidence = self._extract_evidence(extracted_data, text, context)
 
                     return ExtractionResult(
                         data=extracted_data,
@@ -203,7 +215,7 @@ Antworte nur mit dem korrigierten JSON-Objekt."""
         """Extract JSON from LLM response."""
         # Try to parse as-is first
         try:
-            return json.loads(response)
+            return self._normalize_json_payload(json.loads(response))
         except json.JSONDecodeError:
             pass
 
@@ -211,7 +223,7 @@ Antworte nur mit dem korrigierten JSON-Objekt."""
         json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response)
         if json_match:
             try:
-                return json.loads(json_match.group(1))
+                return self._normalize_json_payload(json.loads(json_match.group(1)))
             except json.JSONDecodeError:
                 pass
 
@@ -219,15 +231,75 @@ Antworte nur mit dem korrigierten JSON-Objekt."""
         json_match = re.search(r'\{[\s\S]*\}', response)
         if json_match:
             try:
-                parsed = json.loads(json_match.group())
-                # If it has "data" key, extract that
-                if "data" in parsed:
-                    return parsed["data"]
-                return parsed
+                return self._normalize_json_payload(json.loads(json_match.group()))
             except json.JSONDecodeError:
                 pass
 
         return None
+
+    def _normalize_json_payload(self, payload):
+        """Normalize common Claude response shapes into predictable JSON."""
+        if isinstance(payload, list):
+            return {"records": payload}
+
+        if not isinstance(payload, dict):
+            return payload
+
+        if isinstance(payload.get("records"), list):
+            return payload
+
+        if isinstance(payload.get("data"), dict):
+            return {
+                "data": payload["data"],
+                "evidence": payload.get("evidence", [])
+            }
+
+        return payload
+
+    def _extract_record_payload(self, payload):
+        """Unwrap `data` wrappers while preserving model-provided evidence."""
+        if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+            return payload["data"], payload.get("evidence", [])
+        return payload, []
+
+    def _parse_llm_evidence(
+        self,
+        evidence_payload,
+        context: ExtractionContext
+    ) -> list[EvidencePointer]:
+        """Convert model-provided evidence objects into internal pointers."""
+        if not isinstance(evidence_payload, list):
+            return []
+
+        evidence: list[EvidencePointer] = []
+        for item in evidence_payload:
+            if not isinstance(item, dict):
+                continue
+
+            field_path = item.get("field") or item.get("field_path")
+            excerpt = item.get("excerpt")
+            if not field_path or not excerpt:
+                continue
+
+            evidence.append(EvidencePointer(
+                field_path=field_path,
+                excerpt=excerpt[:1000],
+                chunk_index=context.chunk_index
+            ))
+
+        return evidence
+
+    def _extract_text_blocks(self, response) -> str:
+        """Join text blocks from an Anthropic Messages API response."""
+        text_parts: list[str] = []
+
+        for block in getattr(response, "content", []) or []:
+            if getattr(block, "type", None) == "text":
+                text = getattr(block, "text", None)
+                if text:
+                    text_parts.append(text)
+
+        return "\n".join(text_parts).strip()
 
     def _extract_evidence(
         self,

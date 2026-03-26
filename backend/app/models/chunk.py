@@ -13,7 +13,7 @@ class Chunk(Base):
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     section_path = Column(String(500), nullable=True)  # e.g., "Chapter 1 > Section 1.1"
     text = Column(Text, nullable=False)
-    embedding = Column(Vector(1536), nullable=True)  # OpenAI embedding dimension
+    embedding = Column(Vector(1536), nullable=True)  # Current placeholder embedding dimension
     confidence = Column(Float, nullable=False, default=1.0)  # Lower for PDF
     start_offset = Column(Integer, nullable=True)  # Character offset in original
     end_offset = Column(Integer, nullable=True)
