@@ -74,12 +74,12 @@
 ### Deploy und Live-Checks
 
 #### 3.1 Backend deployed
-- **Git-Commit:** `7ff64fc`
-- **Railway-Deploy:** `1d444b4c-f0d8-4c47-8091-94f150859f4f`
-- **Status:** `SUCCESS` am `2026-03-26 11:56:34 +01:00`
+- **Git-Commit:** `38c3299`
+- **Railway-Deploy:** `eafa0d34-e821-45a6-a908-b9dd69dd3506`
+- **Status:** `SUCCESS` am `2026-03-26 11:58:51 +01:00`
 
 #### 3.2 Frontend-Production-Deploy bereit
-- **Vercel:** Neue Production-Deployment-Instanz wurde fuer `fathmns-projects/jokari-knowledge-hub` als `Ready` angezeigt.
+- **Vercel:** Production-Deployment `https://jokari-knowledge-9ii8rvx2c-fathmns-projects.vercel.app` wurde fuer `fathmns-projects/jokari-knowledge-hub` als `Ready` angezeigt.
 
 #### 3.3 Live-Endpunkte verifiziert
 - **Frontend:** `/login` -> `200`
