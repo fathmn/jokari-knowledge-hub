@@ -6,6 +6,121 @@
 
 ---
 
+## 2026-03-26 — Phase 1 fuer Dokumentstruktur und Extraktionsqualitaet umgesetzt und deployed (Codex)
+
+**Kontext:** Phase 1 aus `INTERNAL_IMPLEMENTATION_PLAN.md` wurde auf dem internen Produktpfad end-to-end umgesetzt. Der Fokus lag ausschliesslich auf Upload, Extraktion, Review-Vorbereitung und Datenqualitaet fuer grosse interne Fachdokumente. Website-Chatbot, PIM und externe Integrationen wurden bewusst nicht angefasst.
+
+### Fachliche Leitentscheidung
+
+#### 0.1 Ein Benchmark wie `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx` ist fachlich kein einzelnes globales Trainingsmodul
+- **Bewertung:** Solche Unterlagen sind im aktuellen Modell eher **mehrteilige Multi-Produkt-/Sales-Knowledge-Dokumente**.
+- **Technische Richtung:** Vorerst kein neues Grossmodell, sondern Aufteilung in mehrere `TrainingModule`-Records pro Produkt-/Themenabschnitt.
+- **Folge:** `version` ist auf diesem Pfad nicht mehr pro Record hart erforderlich; wenn nur ein Dokumentstand existiert, wird der Dokumentkontext genutzt.
+
+### Backend: Parser, Chunking, Extraktion
+
+#### 1.1 DOCX-Parser deutlich strukturierter
+- **Fix:** Abschnittserkennung nicht mehr nur ueber echte Word-Heading-Styles.
+- **Neu:** Heuristiken fuer kurze Ueberschriften, inline markierte Abschnitte (`Titel:`, `Produkt:` etc.), Produktnamen, Listen und Tabellen.
+- **Effekt:** Mehrteilige Vertriebsunterlagen werden bereits beim Parsen in fachlich brauchbarere Sektionen aufgeteilt.
+- **Datei:** `backend/app/parsers/docx_parser.py`
+
+#### 1.2 PDF-Parser nicht mehr nur stumpf pro Seite
+- **Fix:** Seiten werden jetzt zusaetzlich auf heading-aehnliche Linien geprueft.
+- **Effekt:** PDF-Text geht mit mehr Struktur in den restlichen Pipeline-Pfad.
+- **Datei:** `backend/app/parsers/pdf_parser.py`
+
+#### 1.3 Chunking gegen Mega-Chunk-Falle gehaertet
+- **Problem:** Bisher fuehrte ein langer Block mit einfachen `\n` oft trotzdem zu genau einem ubergrossen Chunk.
+- **Fix:** Strukturierte Blockbildung, Heading-Erkennung und Fallback-Splitting fuer uebergrosse Einzelbloecke.
+- **Effekt:** Grosse Multi-Entity-Dokumente laufen nicht mehr als einzelner Mega-Chunk durch.
+- **Datei:** `backend/app/services/chunking.py`
+
+#### 1.4 Ingestion jetzt chunk-basiert statt Volltext-in-einem-Rutsch
+- **Problem:** Trotz vorhandener Chunks ging der Extraktor bislang faktisch immer gegen `parsed_doc.raw_text`.
+- **Fix:** Extraktion jetzt pro Chunk/Section-Kontext mit anschliessender Aggregation gleicher Records innerhalb desselben Imports.
+- **Effekt:** Bessere Segmentgrenzen, sauberere Evidence-Zuordnung und weniger Zerfall durch einen einzigen uebergrossen Prompt.
+- **Datei:** `backend/app/services/ingestion.py`
+
+#### 1.5 Claude-Prompting fuer `sales / training_module` geschaerft
+- **Fix:** Extraktionskontext enthaelt jetzt Chunk-Zahl, Abschnittspfad und Dokumentversion.
+- **Neu:** Spezifische Leitplanken fuer produktlastige Vertriebsschulungen als Multi-Record-Dokumente.
+- **Effekt:** Der produktive Claude-Pfad ist gezielter auf Produkt-/Themenabschnitte statt auf einen globalen Record ausgerichtet.
+- **Dateien:** `backend/app/extractors/base.py`, `backend/app/extractors/claude.py`
+
+#### 1.6 `TrainingModule` fachlich entkrampft
+- **Fix:** `version` ist nicht mehr required; zusaetzliche optionale Felder fuer produktnahe Sales-Knowledge-Einheiten wurden ergaenzt.
+- **Effekt:** Unnoetige `needs_review`-Faelle sinken, wenn der Dokumentstand nur dokumentweit statt abschnittsweit vorliegt.
+- **Datei:** `backend/app/schemas/knowledge/sales.py`
+
+### Tests und Verifikation
+
+#### 2.1 Neue Regressionstests fuer Phase 1
+- **Neu:** DOCX-Heuristik-Test fuer heading-aehnliche Produktabschnitte.
+- **Neu:** Chunking-Test gegen den Single-Mega-Chunk-Fall.
+- **Neu:** Ingestion-Test fuer chunk-basierte Multi-Record-Aggregation.
+- **Zusatz:** Kleiner Bestandsfix im Markdown-Parser-Testpfad, damit eingerueckte Unterueberschriften korrekt erkannt werden.
+- **Dateien:** `backend/tests/test_parsers.py`, `backend/tests/test_chunking.py`, `backend/tests/test_ingestion.py`, `backend/app/parsers/markdown_parser.py`
+
+#### 2.2 Backend-Testlauf gruen
+- **Verifiziert:** `backend/venv/bin/pytest -q backend/tests`
+- **Ergebnis:** `31 passed`
+
+#### 2.3 Produktionsnahe Smoke-Checks lokal
+- **Synthetisches Mehrfach-DOCX:** Ergab nach Parser/Chunking drei fachliche Sektionen (`Das Entmanteler-Prinzip`, `JOKARI XL`, `SECURA No. 15`) und bei Default-Chunking `6` Chunks statt eines Einzelblocks.
+- **Stub-basierter Ingestion-Smoke:** Mehrteilige Vertriebsschulung erzeugte mehrere getrennte Records ohne pauschales `needs_review`.
+- **Einschraenkung:** Lokal war kein `ANTHROPIC_API_KEY` gesetzt und `llm_provider` stand auf `stub`, daher kein direkter Claude-Smoke lokal moeglich.
+
+### Deploy und Live-Checks
+
+#### 3.1 Backend deployed
+- **Git-Commit:** `7ff64fc`
+- **Railway-Deploy:** `1d444b4c-f0d8-4c47-8091-94f150859f4f`
+- **Status:** `SUCCESS` am `2026-03-26 11:56:34 +01:00`
+
+#### 3.2 Frontend-Production-Deploy bereit
+- **Vercel:** Neue Production-Deployment-Instanz wurde fuer `fathmns-projects/jokari-knowledge-hub` als `Ready` angezeigt.
+
+#### 3.3 Live-Endpunkte verifiziert
+- **Frontend:** `/login` -> `200`
+- **Frontend:** `/` -> `307` Redirect auf `/login?next=%2F`
+- **Frontend:** `/site.webmanifest` -> `200`
+- **Backend:** `/health` -> `{"status":"healthy"}`
+
+### Offene Restpunkte nach diesem Block
+
+#### 4.1 Echter Produktions-Benchmark noch erneut mit Live-Claude pruefen
+- Das reale Dokument `Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx` lag lokal nicht vor.
+- Der wichtigste naechste fachliche Nachweis ist daher ein gezielter Re-Upload dieses echten Dokuments in der produktiven Umgebung und der Vergleich der neuen Chunk-/Record-/`needs_review`-Verteilung gegen den bisherigen Stand.
+
+## 2026-03-26 — Interner Umsetzungsplan und Agenten-Handover fuer die naechste Phase erstellt (Codex)
+
+**Kontext:** Der urspruengliche Angebotsumfang umfasst sowohl den internen Knowledge Hub als auch externe Themen wie Website-Chatbot und Integrationen. Fuer die naechste Entwicklungsphase wurde entschieden, die externen Themen bewusst auszuklammern und den internen Produktkern gezielt weiter auszubauen.
+
+### Neue Planungsartefakte
+
+#### 0.1 Interner Umsetzungsplan erstellt
+- **Neu:** Dediziertes Planungsdokument fuer den internen Scope ohne Chatbot/PIM/externe Integrationen.
+- **Enthaelt:** Ist-Zustand, Nicht-Ziele, priorisierte Phasen, Definition of Done und konkrete Dateihotspots.
+- **Datei:** `INTERNAL_IMPLEMENTATION_PLAN.md`
+
+#### 0.2 Handover-Prompt fuer Folge-Agent erstellt
+- **Neu:** Strukturierter Prompt fuer einen weiteren Agenten, damit dieser ohne Kontextverlust in Phase 1 einsteigen kann.
+- **Enthaelt:** Zielbild, Nicht-Ziele, zu lesende Dateien, Produktionskontext, Benchmark-Dokument, Arbeitsauftrag und Abnahmekriterien.
+- **Datei:** `NEXT_AGENT_HANDOVER_PROMPT.md`
+
+### Fachliche Leitentscheidung
+
+#### 0.3 Scope fuer den naechsten Block eingegrenzt
+- **Entscheidung:** Zunaechst keine Arbeiten an Website-Chatbot, PIM-Anbindung oder externer SQL-/FTP-Integration.
+- **Fokus:** Upload, Extraktion, Review, interne Suche, interne APIs/Exporte, Datenqualitaet und Stabilitaet.
+
+### Naechster fachlicher Schwerpunkt
+
+#### 0.4 Phase 1 als naechster Kernauftrag definiert
+- **Problem:** Grosse Multi-Entity-Dokumente werden aktuell noch nicht ausreichend fein segmentiert und erzeugen zu viele `needs_review`-Records.
+- **Ziel:** Parser-, Chunking- und Extraktionsqualitaet fuer grosse interne Fachdokumente verbessern.
+
 ## 2026-03-24 — Produktionsstand konsolidiert, Auth reaktiviert, README als Source of Truth erneuert (Codex)
 
 **Kontext:** Nach dem temporären Demo-Betrieb ohne echte Auth musste der produktive Pfad wiederhergestellt, auf die Hauptdomain zurückgeführt und technisch dokumentiert werden. Zusätzlich war die bestehende README inhaltlich stark veraltet und beschrieb nicht mehr den tatsächlichen Live-Stack.

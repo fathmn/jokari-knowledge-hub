@@ -58,6 +58,17 @@ Browser
 - Suche über freigegebene Wissenseinträge
 - Dashboard mit Statistiken und Vollständigkeitsübersicht
 
+## Phase-1 Datenqualitaet
+
+Stand: 26.03.2026
+
+- Grosse `docx`- und `pdf`-Dokumente werden parser- und chunking-seitig strukturierter segmentiert.
+- Der Ingestion-Pfad schickt grosse Dokumente nicht mehr pauschal als einzelnen Volltextblock in die Extraktion, sondern extrahiert chunk-basiert und fuehrt Duplikate innerhalb desselben Imports wieder zusammen.
+- Fuer `sales / training_module` gilt jetzt fachlich: Produktlastige Vertriebsschulungen sind meist **mehrteilige Sales-Knowledge-Dokumente**, nicht ein einziges globales Trainingsmodul.
+- Im aktuellen Modell bleiben diese Records weiterhin auf dem `TrainingModule`-Pfad, werden aber pro Produkt-/Themenabschnitt einzeln erzeugt.
+- Das Feld `version` ist fuer diesen Pfad nicht mehr pro Record zwingend. Wenn nur ein Dokumentstand vorliegt, wird er aus dem Dokumentkontext uebernommen.
+- Lokale Entwicklung kann weiterhin mit dem Stub-Extractor laufen; produktiv ist Claude der relevante Extraktor.
+
 ## Tech Stack
 
 ### Frontend
@@ -367,10 +378,10 @@ Stand 24.03.2026:
 
 ## Empfohlene nächste Schritte
 
-1. Interne Benutzerverwaltung vereinfachen
-2. Optional SMTP + Magic Link sauber reaktivieren
-3. Railway als Compute-Layer ablösen
-4. Danach Architektur final auf `Vercel + Supabase` konsolidieren
+1. Review-Queue fuer groessere Multi-Record-Imports gezielt verbessern
+2. Das reale Benchmark-Dokument produktionsnah mit Claude erneut durchtesten und die resultierende `needs_review`-Quote gegen den bisherigen Stand vergleichen
+3. Interne Suche von Textsuche auf embeddings-/`pgvector`-gestuetztes Retrieval anheben
+4. Danach Railway als Compute-Layer gezielt abloesen
 
 ## Tests und Kommandos
 
@@ -393,6 +404,12 @@ npm audit
 ```bash
 cd backend
 python3 -m compileall app
+```
+
+### Backend-Tests
+
+```bash
+backend/venv/bin/pytest -q backend/tests
 ```
 
 ## Lizenz
