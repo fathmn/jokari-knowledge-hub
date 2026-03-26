@@ -11,6 +11,7 @@ from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
 from app.parsers.base import DocumentParser, ParsedDocument, ParsedSection
+from app.config import get_settings
 
 
 class DocxParser(DocumentParser):
@@ -83,6 +84,7 @@ class DocxParser(DocumentParser):
         return blocks, metadata, warnings
 
     def parse(self, file_path: str) -> ParsedDocument:
+        settings = get_settings()
         try:
             doc = Document(file_path)
         except KeyError as exc:
@@ -92,7 +94,7 @@ class DocxParser(DocumentParser):
                     return self._build_parsed_document_from_blocks(
                         blocks=blocks,
                         metadata=metadata,
-                        confidence=0.7,
+                        confidence=settings.docx_fallback_confidence,
                         warnings=warnings,
                     )
             raise

@@ -9,6 +9,7 @@ from app.extractors.base import (
     ExtractedRecord,
     EvidencePointer
 )
+from app.config import get_settings
 
 
 class LocalStubExtractor(LLMExtractor):
@@ -25,6 +26,9 @@ class LocalStubExtractor(LLMExtractor):
         r"^Artikel:\s*(.+)$",  # "Artikel: Name"
         r"^Name:\s*(.+)$",  # "Name: Value"
     ]
+
+    def __init__(self):
+        self.settings = get_settings()
 
     async def extract(
         self,
@@ -58,7 +62,10 @@ class LocalStubExtractor(LLMExtractor):
                 valid=len(records) > 0,
                 errors=all_errors,
                 evidence=[],
-                confidence=0.7 if records else 0.3,
+                confidence=(
+                    self.settings.stub_multi_record_confidence
+                    if records else self.settings.stub_empty_result_confidence
+                ),
                 needs_review=len(records) == 0,
                 raw_response=f"Extracted {len(records)} records"
             )
@@ -193,7 +200,10 @@ class LocalStubExtractor(LLMExtractor):
             data=extracted_data,
             schema_type=schema_name,
             evidence=evidence,
-            confidence=0.6 if valid else 0.4,
+            confidence=(
+                self.settings.stub_record_valid_confidence
+                if valid else self.settings.stub_record_invalid_confidence
+            ),
             source_section=section_title
         )
 
@@ -298,7 +308,10 @@ class LocalStubExtractor(LLMExtractor):
             valid=valid,
             errors=errors,
             evidence=evidence,
-            confidence=0.6 if valid else 0.3,
+            confidence=(
+                self.settings.stub_single_valid_confidence
+                if valid else self.settings.stub_single_invalid_confidence
+            ),
             needs_review=not valid,
             raw_response=json.dumps(extracted_data, ensure_ascii=False, indent=2)
         )

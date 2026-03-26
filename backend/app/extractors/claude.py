@@ -22,6 +22,7 @@ class ClaudeExtractor(LLMExtractor):
 
     def __init__(self):
         settings = get_settings()
+        self.settings = settings
         self.client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         self.model = settings.anthropic_model or "claude-sonnet-4-6"
         self.max_retries = 2
@@ -79,7 +80,10 @@ class ClaudeExtractor(LLMExtractor):
                             data=rec_data,
                             schema_type=schema.__name__,
                             evidence=rec_evidence,
-                            confidence=0.85 if valid else 0.5,
+                            confidence=(
+                                self.settings.claude_multi_record_confidence
+                                if valid else self.settings.claude_partial_record_confidence
+                            ),
                             source_section=rec_data.get("title") or rec_data.get("name")
                         ))
                     if records:
@@ -89,7 +93,7 @@ class ClaudeExtractor(LLMExtractor):
                             valid=True,
                             errors=[],
                             evidence=[],
-                            confidence=0.85,
+                            confidence=self.settings.claude_multi_record_confidence,
                             needs_review=False,
                             raw_response=last_response
                         )
@@ -114,7 +118,7 @@ class ClaudeExtractor(LLMExtractor):
                         valid=True,
                         errors=[],
                         evidence=evidence,
-                        confidence=0.9,
+                        confidence=self.settings.claude_single_record_confidence,
                         needs_review=False,
                         raw_response=last_response
                     )
@@ -136,7 +140,7 @@ class ClaudeExtractor(LLMExtractor):
             valid=False,
             errors=errors,
             evidence=[],
-            confidence=0.0,
+            confidence=self.settings.claude_failure_confidence,
             needs_review=True,
             raw_response=last_response
         )

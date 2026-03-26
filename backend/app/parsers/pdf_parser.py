@@ -3,6 +3,7 @@ import re
 import pdfplumber
 
 from app.parsers.base import DocumentParser, ParsedDocument, ParsedSection
+from app.config import get_settings
 
 
 class PdfParser(DocumentParser):
@@ -14,6 +15,7 @@ class PdfParser(DocumentParser):
         return file_extension.lower() == ".pdf"
 
     def parse(self, file_path: str) -> ParsedDocument:
+        settings = get_settings()
         warnings: list[str] = [
             "PDF-Extraktion: Nur Textinhalte werden extrahiert. "
             "Formatierung, Tabellen und Bilder werden möglicherweise nicht korrekt erfasst."
@@ -77,7 +79,7 @@ class PdfParser(DocumentParser):
             raw_text=raw_text,
             sections=sections,
             metadata=metadata,
-            confidence=0.7,
+            confidence=settings.pdf_parser_confidence,
             file_type="pdf",
             warnings=warnings,
         )

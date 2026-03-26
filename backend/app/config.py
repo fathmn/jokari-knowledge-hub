@@ -16,6 +16,27 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     llm_provider: str = "stub"  # stub | claude
     llm_timeout_seconds: float = 120.0
+    claude_multi_record_confidence: float = 0.85
+    claude_partial_record_confidence: float = 0.5
+    claude_single_record_confidence: float = 0.9
+    claude_failure_confidence: float = 0.0
+    stub_multi_record_confidence: float = 0.7
+    stub_empty_result_confidence: float = 0.3
+    stub_record_valid_confidence: float = 0.6
+    stub_record_invalid_confidence: float = 0.4
+    stub_single_valid_confidence: float = 0.6
+    stub_single_invalid_confidence: float = 0.3
+
+    # Parsing and chunking
+    docx_fallback_confidence: float = 0.7
+    pdf_parser_confidence: float = 0.7
+    extraction_grouping_min_chunks: int = 12
+    record_confidence_needs_review_threshold: float = 0.5
+    sales_doc_type_mismatch_section_threshold: int = 3
+    sales_doc_type_mismatch_filename_markers: str = "vertriebsschulung,schulung,training"
+
+    # Upload
+    allowed_upload_extensions: str = ".docx,.md,.markdown,.csv,.xlsx,.xls,.pdf"
 
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,https://jokari-knowledge-hub.vercel.app"
@@ -27,6 +48,22 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @property
+    def allowed_upload_extensions_list(self) -> list[str]:
+        return [
+            extension.strip().lower()
+            for extension in self.allowed_upload_extensions.split(",")
+            if extension.strip()
+        ]
+
+    @property
+    def sales_doc_type_mismatch_filename_markers_list(self) -> list[str]:
+        return [
+            marker.strip().lower()
+            for marker in self.sales_doc_type_mismatch_filename_markers.split(",")
+            if marker.strip()
+        ]
 
 
 @lru_cache()

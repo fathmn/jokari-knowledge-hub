@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import { Upload, X, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { useToast } from '@/components/Toast'
+import { DROPZONE_ACCEPT, UPLOAD_EXTENSION_LABELS } from '@/lib/uploadConfig'
 
 interface DocTypes {
   [department: string]: string[]
@@ -58,13 +59,7 @@ export default function UploadPage() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'text/markdown': ['.md'],
-      'text/csv': ['.csv'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/pdf': ['.pdf'],
-    }
+    accept: DROPZONE_ACCEPT,
   })
 
   const removeFile = (index: number) => {
@@ -182,7 +177,7 @@ export default function UploadPage() {
                   oder <span className="text-neutral-900 underline">durchsuchen</span>
                 </p>
                 <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-4">
-                  {['DOCX', 'PDF', 'MD', 'CSV', 'XLSX'].map((ext) => (
+                  {UPLOAD_EXTENSION_LABELS.map((ext) => (
                     <span key={ext} className="px-2 py-0.5 sm:py-1 bg-neutral-100 text-neutral-600 text-xs font-medium rounded">
                       {ext}
                     </span>

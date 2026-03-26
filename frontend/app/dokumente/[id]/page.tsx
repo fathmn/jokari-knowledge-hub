@@ -18,6 +18,11 @@ import StatusBadge from '@/components/StatusBadge'
 import CompletenessBar from '@/components/CompletenessBar'
 import ConfirmModal from '@/components/ConfirmModal'
 import { useToast } from '@/components/Toast'
+import {
+  CHUNK_SIGNAL_THRESHOLDS,
+  DOCUMENT_PROCESSING_STATUSES,
+  DOCUMENT_STATUS_POLL_INTERVAL_MS,
+} from '@/lib/documentDetailConfig'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 
@@ -95,6 +100,20 @@ export default function DocumentDetailPage() {
       fetchRecords()
     }
   }, [params.id])
+
+  useEffect(() => {
+    if (!document || !DOCUMENT_PROCESSING_STATUSES.has(document.status)) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      fetchDocument()
+      fetchChunks()
+      fetchRecords()
+    }, DOCUMENT_STATUS_POLL_INTERVAL_MS)
+
+    return () => window.clearInterval(intervalId)
+  }, [document?.id, document?.status])
 
   const fetchDocument = async () => {
     try {
@@ -180,6 +199,11 @@ export default function DocumentDetailPage() {
             <div className="mt-1 ml-7 sm:ml-9">
               <StatusBadge status={document.status as any} />
             </div>
+            {DOCUMENT_PROCESSING_STATUSES.has(document.status) && (
+              <p className="mt-2 ml-7 sm:ml-9 text-xs text-gray-500">
+                Status wird automatisch aktualisiert.
+              </p>
+            )}
           </div>
         </div>
         <button
@@ -358,11 +382,11 @@ export default function DocumentDetailPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-400">
-                      Konfidenz:
+                      Parsing-Signal:
                     </span>
                     <span className={`text-xs font-medium ${
-                      chunk.confidence >= 0.8 ? 'text-green-600' :
-                      chunk.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'
+                      chunk.confidence >= CHUNK_SIGNAL_THRESHOLDS.high ? 'text-green-600' :
+                      chunk.confidence >= CHUNK_SIGNAL_THRESHOLDS.medium ? 'text-yellow-600' : 'text-red-600'
                     }`}>
                       {Math.round(chunk.confidence * 100)}%
                     </span>

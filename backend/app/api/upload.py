@@ -12,6 +12,7 @@ from app.services.storage import get_storage_service
 from app.services.ingestion import IngestionService
 from app.schemas.knowledge.registry import get_schema_registry
 from app.auth import AuthenticatedUser, get_current_user, user_identifier
+from app.config import get_settings
 
 router = APIRouter()
 
@@ -55,12 +56,13 @@ async def upload_documents(
         )
 
     storage = get_storage_service()
+    settings = get_settings()
     results = []
     actor = user_identifier(current_user)
 
     for file in files:
         # Check file type
-        allowed_extensions = ['.docx', '.md', '.markdown', '.csv', '.xlsx', '.xls', '.pdf']
+        allowed_extensions = settings.allowed_upload_extensions_list
         ext = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
         if ext not in allowed_extensions:
             results.append({

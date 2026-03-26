@@ -9,7 +9,7 @@ from app.extractors import ExtractionContext, get_extractor
 from app.extractors.stub import LocalStubExtractor
 from app.models.audit_log import AuditLog
 from app.models.chunk import Chunk
-from app.models.document import DocType, Document, DocumentStatus
+from app.models.document import Department, DocType, Document, DocumentStatus
 from app.models.evidence import Evidence
 from app.models.record import Record, RecordStatus
 from app.parsers import get_parser
@@ -22,6 +22,13 @@ from app.services.storage import get_storage_service
 
 class IngestionService:
     """Main service for document ingestion pipeline."""
+
+    _SALES_MULTI_ENTITY_DOC_TYPES = {
+        DocType.PERSONA,
+        DocType.OBJECTION,
+        DocType.PITCH_SCRIPT,
+        DocType.EMAIL_TEMPLATE,
+    }
 
     def __init__(self, db: Session):
         self.db = db
@@ -118,6 +125,9 @@ class IngestionService:
         aggregated_index: dict[str, int] = {}
         stub_fallback_count = 0
 
+        if self._should_fail_fast_for_doc_type_mismatch(document, extraction_units):
+            raise RuntimeError(self._build_no_records_error(document, extraction_units))
+
         loop = self._get_event_loop()
 
         for unit in extraction_units:
@@ -145,6 +155,9 @@ class IngestionService:
 
             for candidate in candidates:
                 self._aggregate_record(candidate, aggregated_records, aggregated_index)
+
+        if not aggregated_records:
+            raise RuntimeError(self._build_no_records_error(document, extraction_units))
 
         # Start the write phase with a clean session after potentially long LLM calls.
         self._safe_rollback()
@@ -193,11 +206,21 @@ class IngestionService:
         )
 
     def _build_extraction_units(self, document: Document, chunks: list[Chunk], full_text: str) -> list[dict]:
+        settings = get_settings()
         if not chunks:
             return [{"text": full_text, "section_path": "", "chunk_index": 0}]
 
-        if document.doc_type == DocType.TRAINING_MODULE and chunks and self._should_group_training_module_chunks(chunks):
-            return self._group_training_module_units(chunks)
+        should_group = (
+            self._has_hierarchical_section_paths(chunks)
+            if document.doc_type == DocType.TRAINING_MODULE
+            else self._should_group_section_root_chunks(chunks, settings.extraction_grouping_min_chunks)
+        )
+
+        if should_group:
+            return self._group_section_root_units(
+                chunks,
+                fold_media_sections=document.doc_type == DocType.TRAINING_MODULE,
+            )
 
         if len(chunks) == 1:
             chunk = chunks[0]
@@ -219,10 +242,16 @@ class IngestionService:
             if chunk.text and chunk.text.strip()
         ]
 
-    def _should_group_training_module_chunks(self, chunks: list[Chunk]) -> bool:
+    def _has_hierarchical_section_paths(self, chunks: list[Chunk]) -> bool:
         return any(chunk.section_path and " > " in chunk.section_path for chunk in chunks)
 
-    def _group_training_module_units(self, chunks: list[Chunk]) -> list[dict]:
+    def _should_group_section_root_chunks(self, chunks: list[Chunk], min_chunks: int) -> bool:
+        return (
+            len(chunks) >= max(min_chunks, 2)
+            and self._has_hierarchical_section_paths(chunks)
+        )
+
+    def _group_section_root_units(self, chunks: list[Chunk], fold_media_sections: bool) -> list[dict]:
         grouped: dict[str, dict] = {}
         ordered_chunks = sorted(chunks, key=lambda item: item.chunk_index)
         current_root: str | None = None
@@ -236,7 +265,7 @@ class IngestionService:
             root_section = section_path.split(" > ")[0].strip() if section_path else ""
             if not root_section:
                 root_section = f"chunk_{chunk.chunk_index}"
-            elif self._is_media_like_training_section(root_section) and current_root:
+            elif fold_media_sections and self._is_media_like_training_section(root_section) and current_root:
                 root_section = current_root
             else:
                 current_root = root_section
@@ -265,6 +294,49 @@ class IngestionService:
             )
 
         return units
+
+    def _build_no_records_error(self, document: Document, extraction_units: list[dict]) -> str:
+        base_message = "Keine fachlich brauchbaren Records extrahiert."
+        settings = get_settings()
+
+        if (
+            document.department == Department.SALES
+            and document.doc_type in self._SALES_MULTI_ENTITY_DOC_TYPES
+            and len(extraction_units) >= settings.sales_doc_type_mismatch_section_threshold
+        ):
+            return (
+                f"{base_message} Dokumenttyp '{document.doc_type.value}' passt wahrscheinlich nicht zu "
+                "diesem mehrteiligen Vertriebsdokument. Bitte als 'training_module' hochladen."
+            )
+
+        return (
+            f"{base_message} Bitte Dokumenttyp, Dokumentinhalt und Review-Eignung pruefen "
+            f"(Dokumenttyp: {document.doc_type.value})."
+        )
+
+    def _should_fail_fast_for_doc_type_mismatch(
+        self,
+        document: Document,
+        extraction_units: list[dict],
+    ) -> bool:
+        settings = get_settings()
+        if (
+            document.department != Department.SALES
+            or document.doc_type not in self._SALES_MULTI_ENTITY_DOC_TYPES
+            or len(extraction_units) < settings.sales_doc_type_mismatch_section_threshold
+        ):
+            return False
+
+        filename = (document.filename or "").lower()
+        markers = getattr(
+            settings,
+            "sales_doc_type_mismatch_filename_markers_list",
+            ["vertriebsschulung", "schulung", "training"],
+        )
+        return any(
+            marker in filename
+            for marker in markers
+        )
 
     def _is_media_like_training_section(self, section_name: str) -> bool:
         normalized = section_name.lower()
@@ -321,6 +393,7 @@ class IngestionService:
         context: ExtractionContext,
     ) -> list[dict]:
         candidates: list[dict] = []
+        settings = get_settings()
 
         if result.records:
             for extracted_record in result.records:
@@ -335,7 +408,7 @@ class IngestionService:
                         "schema_type": extracted_record.schema_type or default_schema_type,
                         "evidence_pointers": extracted_record.evidence,
                         "confidence": extracted_record.confidence,
-                        "needs_review": extracted_record.confidence < 0.5,
+                        "needs_review": extracted_record.confidence < settings.record_confidence_needs_review_threshold,
                         "source_section": extracted_record.source_section or context.section_path,
                     }
                 )
@@ -511,11 +584,17 @@ class IngestionService:
         schema_type: str,
         evidence_pointers: list,
         chunks: list[Chunk],
-        confidence: float = 0.5,
+        confidence: float | None = None,
         needs_review: bool = False,
         source_section: str = None,
     ):
         """Create a single record from extracted data."""
+        settings = get_settings()
+        effective_confidence = (
+            confidence
+            if confidence is not None
+            else settings.record_confidence_needs_review_threshold
+        )
         primary_key = self.merge.compute_primary_key(document.doc_type, data)
 
         existing = self.merge.find_existing_record(
@@ -536,7 +615,7 @@ class IngestionService:
         completeness = self.completeness.calculate_score(document.doc_type, data)
 
         status = RecordStatus.PENDING
-        if needs_review or confidence < 0.5:
+        if needs_review or effective_confidence < settings.record_confidence_needs_review_threshold:
             status = RecordStatus.NEEDS_REVIEW
 
         if source_section:

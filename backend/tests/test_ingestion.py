@@ -45,6 +45,15 @@ class SlowExtractor:
         return ExtractionResult(valid=False, confidence=0.0)
 
 
+class EmptyExtractor:
+    def __init__(self):
+        self.calls = []
+
+    async def extract(self, text, schema, context):
+        self.calls.append((text, context))
+        return ExtractionResult(valid=False, confidence=0.0)
+
+
 class FakeQuery:
     def __init__(self, result):
         self.result = result
@@ -182,3 +191,63 @@ def test_extract_unit_uses_stub_fallback_on_timeout(monkeypatch):
     assert used_stub is True
     assert result.valid is True
     assert result.data is not None or result.records
+
+
+def test_build_extraction_units_groups_large_hierarchical_docs_for_non_training_types(monkeypatch):
+    monkeypatch.setattr("app.services.ingestion.get_storage_service", lambda: object())
+    monkeypatch.setattr(
+        "app.services.ingestion.get_settings",
+        lambda: SimpleNamespace(extraction_grouping_min_chunks=2, record_confidence_needs_review_threshold=0.5),
+    )
+    service = IngestionService(db=SimpleNamespace())
+    document = SimpleNamespace(doc_type=DocType.PERSONA)
+    chunks = [
+        SimpleNamespace(text="Alpha eins", section_path="Alpha > Intro", chunk_index=0),
+        SimpleNamespace(text="Alpha zwei", section_path="Alpha > Details", chunk_index=1),
+        SimpleNamespace(text="Beta eins", section_path="Beta > Intro", chunk_index=2),
+    ]
+
+    units = service._build_extraction_units(document, chunks, full_text="")
+
+    assert [unit["section_path"] for unit in units] == ["Alpha", "Beta"]
+    assert "Alpha zwei" in units[0]["text"]
+
+
+def test_extract_records_fails_fast_for_likely_wrong_sales_doc_type(monkeypatch):
+    monkeypatch.setattr("app.services.ingestion.get_storage_service", lambda: object())
+    empty_extractor = EmptyExtractor()
+    monkeypatch.setattr("app.services.ingestion.get_extractor", lambda: empty_extractor)
+    monkeypatch.setattr(
+        "app.services.ingestion.get_settings",
+        lambda: SimpleNamespace(
+            extraction_grouping_min_chunks=2,
+            record_confidence_needs_review_threshold=0.5,
+            llm_provider="stub",
+            sales_doc_type_mismatch_section_threshold=2,
+            sales_doc_type_mismatch_filename_markers_list=["vertriebsschulung", "training"],
+        ),
+    )
+
+    service = IngestionService(db=SimpleNamespace())
+    monkeypatch.setattr(service, "_create_audit_log", lambda *args, **kwargs: None)
+
+    document = SimpleNamespace(
+        id=uuid4(),
+        department=Department.SALES,
+        doc_type=DocType.PERSONA,
+        filename="Konzept_Vertriebsschulung_Entmanteler_Stand_25.02.2021.docx",
+        version_date=datetime(2021, 2, 25),
+    )
+    chunks = [
+        SimpleNamespace(id=uuid4(), text="Produkt A", section_path="Universal No. 12 > Intro", chunk_index=0),
+        SimpleNamespace(id=uuid4(), text="Produkt B", section_path="JOKARI XL > Intro", chunk_index=1),
+    ]
+
+    try:
+        service._extract_records(document, chunks, full_text="\n\n".join(chunk.text for chunk in chunks))
+    except RuntimeError as exc:
+        assert "training_module" in str(exc)
+        assert "persona" in str(exc)
+        assert len(empty_extractor.calls) == 0
+    else:
+        raise AssertionError("Expected _extract_records to fail for likely mismatched persona upload")

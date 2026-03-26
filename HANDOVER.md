@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-03-26 — Persona-Fehlklassifizierung fail-fast gemacht, UI-Status-Polling ergaenzt und Hardcodings zentralisiert (Codex)
+
+**Kontext:** Nach dem letzten Deploy blieb ein neuer Re-Upload des Benchmark-Dokuments erneut auf `extracting` stehen. In der Produktions-DB war der Datensatz `a9765628-b9f9-4e26-bd56-74f2df37292f` mit `129` Chunks, `0` Records und `doc_type=persona` sichtbar. Das ist fachlich der falsche Pfad fuer dieses Vertriebsschulungsdokument und fuehrte dazu, dass die App erneut unklar wirkte.
+
+### Backend: frueherer und klarerer Abbruch bei falschem Dokumenttyp
+
+#### 0.1 `training_module`-Grouping bleibt auch bei kleinen hierarchischen Trainingsdokumenten aktiv
+- **Fix:** Die Root-Section-Gruppierung fuer `training_module` ist nicht mehr an die allgemeine Mindest-Chunkzahl gekoppelt.
+- **Effekt:** Bestehende Multi-Chunk-Tests und kleine, klar gegliederte Trainingsunterlagen verhalten sich wieder korrekt.
+- **Datei:** `backend/app/services/ingestion.py`
+
+#### 0.2 Falsche Sales-Dokumenttypen schlagen jetzt vor dem teuren LLM-Lauf fehl
+- **Fix:** Mehrteilige `sales`-Dokumente mit offensichtlich falschem Typ wie `persona`, `objection`, `pitch_script` oder `email_template` werden jetzt vor dem Claude-Lauf abgefangen, wenn Dateiname/Struktur stark auf Schulungsunterlagen hindeuten.
+- **Effekt:** Das System bleibt nicht minutenlang scheinbar auf `extracting`, obwohl der fachliche Pfad bereits erkennbar falsch ist.
+- **Datei:** `backend/app/services/ingestion.py`
+
+#### 0.3 Relevante Extraktions- und Parser-Konstanten zentral konfigurierbar gemacht
+- **Neu konfigurierbar:** Claude-/Stub-Confidence-Werte, DOCX-/PDF-Parser-Confidence, `needs_review`-Schwelle, Chunk-Grouping-Schwelle, Dateityp-Mismatch-Heuristik und erlaubte Upload-Endungen.
+- **Effekt:** Keine verteilten Magic Numbers mehr im Kernpfad von Upload, Parsing und Extraktion.
+- **Dateien:** `backend/app/config.py`, `backend/app/extractors/claude.py`, `backend/app/extractors/stub.py`, `backend/app/parsers/docx_parser.py`, `backend/app/parsers/pdf_parser.py`, `backend/app/api/upload.py`, `backend/app/services/ingestion.py`
+
+### Frontend: Statusdarstellung und Upload-Konfiguration klarer
+
+#### 1.1 Dokumentdetailseite pollt laufende Verarbeitungszustande
+- **Fix:** Solange ein Dokument auf `uploading`, `parsing` oder `extracting` steht, werden Detaildaten, Chunks und Records automatisch aktualisiert.
+- **Effekt:** Der Nutzer sitzt nicht mehr auf einer statischen Seite und muss den Browser manuell neu laden.
+- **Dateien:** `frontend/app/dokumente/[id]/page.tsx`, `frontend/lib/documentDetailConfig.ts`
+
+#### 1.2 Chunk-Anzeige bewusst ent-irrefuehrt
+- **Fix:** Die UI spricht jetzt von `Parsing-Signal` statt von scheinbar exakter `Konfidenz`.
+- **Effekt:** Der dokumentweite Parserwert wird nicht mehr als echte KI-Sicherheit pro Chunk missverstanden.
+- **Datei:** `frontend/app/dokumente/[id]/page.tsx`
+
+#### 1.3 Upload-Dateitypen nicht mehr doppelt hart gepflegt
+- **Fix:** Die im Frontend sichtbaren und im Dropzone-Accept verwendeten Upload-Endungen kommen jetzt aus einer zentralen Upload-Konfiguration.
+- **Dateien:** `frontend/app/upload/page.tsx`, `frontend/lib/uploadConfig.ts`
+
+### Tests und Verifikation
+
+#### 2.1 Testabdeckung erweitert und wieder gruen
+- **Neu/angepasst:** Ingestion-Tests fuer Gruppierungslogik und fruehen Abbruch bei falschem Sales-Dokumenttyp.
+- **Verifiziert:** `backend/venv/bin/pytest -q backend/tests`
+- **Ergebnis:** `36 passed`
+
+#### 2.2 Frontend-Build erfolgreich
+- **Verifiziert:** `cd frontend && npm run build`
+- **Ergebnis:** erfolgreicher Production-Build mit den neuen Detail-/Upload-Konfigurationen
+
 ## 2026-03-26 — Extraktions-Haenger im Produktionspfad gehaertet und Projektablauf dokumentiert (Codex)
 
 **Kontext:** Ein realer Re-Upload des Benchmark-Dokuments blieb in Produktion auf `extracting` stehen. Das Dokument war bereits geparst und gechunkt, aber es wurden keine Records mehr geschrieben. Zusaetzlich wurde eine dauerhafte Ablaufdokumentation fuer den Gesamtprozess benoetigt.
