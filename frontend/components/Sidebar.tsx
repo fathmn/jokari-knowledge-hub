@@ -25,7 +25,7 @@ const favoriten = [
 
 const wissensbereiche = [
   { name: 'Review', href: '/review', icon: CheckSquare },
-  { name: 'Updates', href: '/review?status=pending', icon: GitPullRequest },
+  { name: 'Updates', href: '/review/updates', icon: GitPullRequest },
   { name: 'Wissensdatenbank', href: '/wissen', icon: BookOpen },
   { name: 'Suche', href: '/suche', icon: Search },
 ]
@@ -48,8 +48,12 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const activeDepartment = searchParams.get('department') || ''
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: any } }) => {
-    const isActive = pathname === item.href ||
-      (item.href !== '/' && pathname.startsWith(item.href))
+    const isReviewUpdatesPath = pathname.startsWith('/review/updates')
+    const isActive = pathname === item.href || (
+      item.href !== '/' &&
+      pathname.startsWith(`${item.href}/`) &&
+      !(item.href === '/review' && isReviewUpdatesPath)
+    )
 
     return (
       <Link

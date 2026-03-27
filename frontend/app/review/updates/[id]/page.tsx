@@ -58,7 +58,7 @@ export default function UpdateDetailPage() {
         body: JSON.stringify({})
       })
       showToast('Update genehmigt und angewendet', 'success')
-      router.push('/review')
+      router.push('/review/updates')
     } catch (err) {
       showToast('Fehler beim Genehmigen', 'error')
     } finally {
@@ -81,7 +81,7 @@ export default function UpdateDetailPage() {
       })
       showToast('Update abgelehnt', 'warning')
       setRejectReason('')
-      router.push('/review')
+      router.push('/review/updates')
     } catch (err) {
       showToast('Fehler beim Ablehnen', 'error')
     } finally {
