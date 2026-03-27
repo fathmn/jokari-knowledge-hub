@@ -298,6 +298,43 @@ export default function RecordDetailPage() {
     setEditingValue('')
   }
 
+  const formatEditableValue = (value: any) => {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item)).join('\n')
+    }
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value, null, 2)
+    }
+    return value === undefined || value === null ? '' : String(value)
+  }
+
+  const parseEditedValue = (originalValue: any, rawValue: string) => {
+    if (Array.isArray(originalValue)) {
+      return rawValue
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+    if (typeof originalValue === 'number') {
+      const parsed = Number(rawValue)
+      return Number.isNaN(parsed) ? originalValue : parsed
+    }
+    if (typeof originalValue === 'boolean') {
+      return rawValue.trim().toLowerCase() === 'true'
+    }
+    if (originalValue && typeof originalValue === 'object') {
+      return JSON.parse(rawValue)
+    }
+    return rawValue
+  }
+
+  const saveGenericFieldEdit = async (fieldName: string, originalValue: any) => {
+    const parsedValue = parseEditedValue(originalValue, editingValue)
+    await updateField(fieldName, parsedValue)
+    setEditingField(null)
+    setEditingValue('')
+  }
+
   // Add item to array field
   const addArrayItem = async (fieldName: string, item: string) => {
     if (!record || !item.trim()) return
@@ -396,6 +433,7 @@ export default function RecordDetailPage() {
   const data = record.data_json
   const title = data?.title || data?.name || data?.question || record.primary_key.split('|')[0] || 'Unbenannt'
   const isTrainingModule = record.schema_type === 'TrainingModule'
+  const canEditRecord = true
   const productCode = data?.artnr || data?.product_code
   const primaryTextField = isTrainingModule ? 'content' : (data?.description !== undefined ? 'description' : 'content')
   const primaryTextTitle = isTrainingModule ? 'Inhalt' : 'Beschreibung'
@@ -505,7 +543,7 @@ export default function RecordDetailPage() {
               setEditingField(primaryTextField)
               setEditingValue(primaryTextValue)
             }}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             {editingField === primaryTextField ? (
               <div>
@@ -543,13 +581,13 @@ export default function RecordDetailPage() {
           <ContentCard
             title={relatedItemsTitle}
             icon={isTrainingModule ? <Package className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             <div className="flex flex-wrap gap-2">
               {relatedItems.map((item, i) => (
                 <span key={i} className="group px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
                   {item}
-                  {record.status !== 'approved' && (
+                  {canEditRecord && (
                     <button
                       onClick={() => removeArrayItem(relatedItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-blue-400 hover:text-red-500"
@@ -559,7 +597,7 @@ export default function RecordDetailPage() {
                   )}
                 </span>
               ))}
-              {record.status !== 'approved' && (
+              {canEditRecord && (
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -591,7 +629,7 @@ export default function RecordDetailPage() {
           <ContentCard
             title={stepItemsTitle}
             icon={<List className="w-5 h-5" />}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             <ol className="space-y-3">
               {stepItems.map((step, i) => (
@@ -600,7 +638,7 @@ export default function RecordDetailPage() {
                     {i + 1}
                   </span>
                   <span className="text-gray-700 pt-0.5 flex-1">{step}</span>
-                  {record.status !== 'approved' && (
+                  {canEditRecord && (
                     <button
                       onClick={() => removeArrayItem(stepItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-2"
@@ -611,7 +649,7 @@ export default function RecordDetailPage() {
                 </li>
               ))}
             </ol>
-            {record.status !== 'approved' && (
+            {canEditRecord && (
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
                 <span className="flex-shrink-0 w-7 h-7 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-sm">
                   {stepItems.length + 1}
@@ -645,14 +683,14 @@ export default function RecordDetailPage() {
           <ContentCard
             title={featureItemsTitle}
             icon={<CheckCircle className="w-5 h-5" />}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             <ul className="space-y-2">
               {featureItems.map((feature, i) => (
                 <li key={i} className="flex items-start group">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 flex-1">{feature}</span>
-                  {record.status !== 'approved' && (
+                  {canEditRecord && (
                     <button
                       onClick={() => removeArrayItem(featureItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
@@ -663,7 +701,7 @@ export default function RecordDetailPage() {
                 </li>
               ))}
             </ul>
-            {record.status !== 'approved' && (
+            {canEditRecord && (
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
                 <CheckCircle className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 <input
@@ -738,7 +776,7 @@ export default function RecordDetailPage() {
           <ContentCard
             title="Links & Verweise"
             icon={<LinkIcon className="w-5 h-5" />}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             <div className="space-y-2">
               {(data?.links || []).map((link, i) => (
@@ -752,7 +790,7 @@ export default function RecordDetailPage() {
                     <LinkIcon className="w-4 h-4 flex-shrink-0" />
                     {link}
                   </a>
-                  {record.status !== 'approved' && (
+                  {canEditRecord && (
                     <button
                       onClick={() => removeArrayItem('links', i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
@@ -765,7 +803,7 @@ export default function RecordDetailPage() {
               {(!data?.links || data.links.length === 0) && !showAddLink && (
                 <p className="text-gray-400 text-sm italic">Keine Links vorhanden</p>
               )}
-              {record.status !== 'approved' && (
+              {canEditRecord && (
                 showAddLink ? (
                   <div className="flex items-center gap-2 pt-2">
                     <input
@@ -818,7 +856,7 @@ export default function RecordDetailPage() {
           <ContentCard
             title="Anhänge & Dateien"
             icon={<Upload className="w-5 h-5" />}
-            canEdit={record.status !== 'approved'}
+            canEdit={canEditRecord}
           >
             <div className="space-y-3">
               {(record.attachments || []).map((att) => (
@@ -838,7 +876,7 @@ export default function RecordDetailPage() {
                     <p className="font-medium text-gray-900 truncate">{att.filename}</p>
                     <p className="text-xs text-gray-500">{att.file_type}</p>
                   </div>
-                  {record.status !== 'approved' && (
+                  {canEditRecord && (
                     <button
                       onClick={() => deleteAttachment(att.id)}
                       className="opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500"
@@ -851,7 +889,7 @@ export default function RecordDetailPage() {
               {(!record.attachments || record.attachments.length === 0) && (
                 <p className="text-gray-400 text-sm italic">Keine Anhänge vorhanden</p>
               )}
-              {record.status !== 'approved' && (
+              {canEditRecord && (
                 <div className="pt-2">
                   <input
                     type="file"
@@ -883,8 +921,52 @@ export default function RecordDetailPage() {
             const label = getFieldLabel(key)
 
             return (
-              <ContentCard key={key} title={label} icon={<Info className="w-5 h-5" />}>
-                <FieldValue fieldKey={key} value={value} />
+              <ContentCard
+                key={key}
+                title={label}
+                icon={<Info className="w-5 h-5" />}
+                canEdit={canEditRecord}
+                onEdit={() => {
+                  setEditingField(key)
+                  setEditingValue(formatEditableValue(value))
+                }}
+              >
+                {editingField === key ? (
+                  <div>
+                    <textarea
+                      value={editingValue}
+                      onChange={(e) => setEditingValue(e.target.value)}
+                      className="w-full h-36 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700 font-mono text-sm"
+                      autoFocus
+                    />
+                    <p className="text-xs text-gray-400 mt-2">
+                      {Array.isArray(value)
+                        ? 'Mehrere Werte zeilenweise eingeben.'
+                        : value && typeof value === 'object'
+                          ? 'Objekte als gültiges JSON speichern.'
+                          : 'Wert direkt bearbeiten und speichern.'}
+                    </p>
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          setEditingField(null)
+                          setEditingValue('')
+                        }}
+                        className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                      >
+                        Abbrechen
+                      </button>
+                      <button
+                        onClick={() => saveGenericFieldEdit(key, value)}
+                        className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                      >
+                        Speichern
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <FieldValue fieldKey={key} value={value} />
+                )}
               </ContentCard>
             )
           })}

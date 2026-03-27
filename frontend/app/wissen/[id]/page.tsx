@@ -15,8 +15,13 @@ import {
   Info,
   Tag,
   Building,
-  Calendar
+  Calendar,
+  Edit2,
+  Save,
+  X,
+  Code
 } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 
 interface Evidence {
   id: string
@@ -97,12 +102,17 @@ const fieldLabels: { [key: string]: string } = {
   warnings: 'Warnhinweise',
   objectives: 'Lernziele',
   target_audience: 'Zielgruppe',
-  version: 'Version',
+  version: 'Dokumentstand',
   problem: 'Problem',
   solution: 'Lösung',
   category: 'Kategorie',
   objection_text: 'Einwand',
   response: 'Erwiderung',
+  product_code: 'Produktcode',
+  product_category: 'Produktkategorie',
+  related_products: 'Verwandte Produkte',
+  key_points: 'Kernaussagen',
+  links: 'Links & Verweise',
   _source_section: 'Quellabschnitt'
 }
 
@@ -111,6 +121,10 @@ export default function WissenDetailPage() {
   const router = useRouter()
   const [record, setRecord] = useState<RecordData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [editData, setEditData] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (params.id) {
@@ -125,6 +139,7 @@ export default function WissenDetailPage() {
       if (!res.ok) throw new Error('Nicht gefunden')
       const data = await res.json()
       setRecord(data)
+      setEditData(JSON.stringify(data.data_json, null, 2))
     } catch (err) {
       // Fallback to review endpoint
       try {
@@ -132,11 +147,39 @@ export default function WissenDetailPage() {
         if (!res.ok) throw new Error('Nicht gefunden')
         const data = await res.json()
         setRecord(data)
+        setEditData(JSON.stringify(data.data_json, null, 2))
       } catch {
         // Record truly not found
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      const parsed = JSON.parse(editData)
+      setActionLoading(true)
+
+      const res = await fetch(`/api/review/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_json: parsed })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.detail || 'Speichern fehlgeschlagen', 'error')
+        return
+      }
+
+      showToast('Änderungen gespeichert', 'success')
+      setEditing(false)
+      await fetchRecord()
+    } catch {
+      showToast('Ungültiges JSON', 'error')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -211,7 +254,32 @@ export default function WissenDetailPage() {
             </div>
           </div>
 
-          <Package className="hidden sm:block w-12 lg:w-16 h-12 lg:h-16 text-gray-200 shrink-0" />
+          <div className="flex flex-col items-start sm:items-end gap-3 shrink-0">
+            <Package className="hidden sm:block w-12 lg:w-16 h-12 lg:h-16 text-gray-200 shrink-0" />
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  if (editing) {
+                    setEditing(false)
+                    setEditData(JSON.stringify(record.data_json, null, 2))
+                  } else {
+                    setEditData(JSON.stringify(record.data_json, null, 2))
+                    setEditing(true)
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+              >
+                <Edit2 className="w-4 h-4" />
+                {editing ? 'Bearbeitung schließen' : 'Eintrag bearbeiten'}
+              </button>
+              <Link
+                href={`/review/${record.id}`}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors"
+              >
+                Review-Ansicht
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -431,14 +499,68 @@ export default function WissenDetailPage() {
         </div>
       )}
 
-      {/* Edit Link */}
-      <div className="mt-6 sm:mt-8 flex justify-end">
-        <Link
-          href={`/review/${record.id}`}
-          className="text-xs sm:text-sm text-gray-500 hover:text-primary-600"
-        >
-          Im Review-Modus bearbeiten →
-        </Link>
+      {/* Edit Area */}
+      <div className="mt-6 sm:mt-8 bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Code className="w-5 h-5 text-gray-400" />
+              Bearbeitung
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Für schnelle Korrekturen direkt hier speichern oder zur strukturierten Review-Ansicht wechseln.
+            </p>
+          </div>
+          <Link
+            href={`/review/${record.id}`}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors"
+          >
+            Zur Review-Ansicht
+          </Link>
+        </div>
+
+        {editing ? (
+          <div>
+            <textarea
+              value={editData}
+              onChange={(e) => setEditData(e.target.value)}
+              className="w-full h-96 font-mono text-sm p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={() => {
+                  setEditing(false)
+                  setEditData(JSON.stringify(record.data_json, null, 2))
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <X className="w-4 h-4" />
+                Abbrechen
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                Speichern
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setEditData(JSON.stringify(record.data_json, null, 2))
+                setEditing(true)
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-xl hover:bg-primary-100 transition-colors"
+            >
+              <Edit2 className="w-4 h-4" />
+              JSON bearbeiten
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

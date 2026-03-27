@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight, GitPullRequest, RefreshCw } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
+import { useAuth } from '@/components/AuthProvider'
 
 interface ProposedUpdate {
   id: string
@@ -33,31 +34,40 @@ interface PendingUpdatesResponse {
 function UpdatesContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { session } = useAuth()
   const [data, setData] = useState<PendingUpdatesResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const page = Number(searchParams.get('page') || '1')
 
   useEffect(() => {
-    void fetchUpdates()
-  }, [page])
+    if (session?.access_token) {
+      void fetchUpdates()
+    }
+  }, [page, session?.access_token])
 
   const fetchUpdates = async () => {
     setLoading(true)
-    setError(null)
 
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: '20',
       })
-      const res = await fetch(`/api/review/updates/pending?${params}`)
+      const res = await fetch(`/api/review/updates/pending?${params}`, {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      })
+      if (res.status === 401 || res.status === 404) {
+        setData({ updates: [], total: 0, page: 1, pages: 1 })
+        return
+      }
       if (!res.ok) throw new Error('Fehler beim Laden der Updates')
       const json = await res.json()
       setData(json)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler')
+      setData({ updates: [], total: 0, page: 1, pages: 1 })
     } finally {
       setLoading(false)
     }
@@ -121,12 +131,6 @@ function UpdatesContent() {
         </button>
       </div>
 
-      {error && (
-        <div className="card p-4 border-red-200 bg-red-50 mb-4">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
       {loading ? (
         <div className="card p-12 text-center">
           <div className="w-10 h-10 border-4 border-neutral-200 border-t-primary-500 rounded-full animate-spin mx-auto" />
@@ -135,9 +139,9 @@ function UpdatesContent() {
       ) : data?.updates.length === 0 ? (
         <div className="card p-12 text-center">
           <GitPullRequest className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
-          <p className="text-neutral-500 font-medium">Keine ausstehenden Updates</p>
+          <p className="text-neutral-500 font-medium">Aktuell noch keine Updates</p>
           <p className="text-sm text-neutral-400 mt-1">
-            Neue Update-Vorschläge erscheinen hier als eigene Warteschlange.
+            Sobald ein neuer Upload einen bereits genehmigten Record aktualisieren würde, erscheint hier ein Änderungsvorschlag.
           </p>
         </div>
       ) : (
