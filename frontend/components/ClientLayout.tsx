@@ -47,7 +47,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-white lg:rounded-2xl lg:border lg:border-accent-100/70 lg:shadow-soft pt-14 lg:pt-0">
+        <main className="flex-1 overflow-auto bg-white/78 backdrop-blur-[6px] lg:rounded-2xl lg:border lg:border-accent-100/70 lg:shadow-soft pt-14 lg:pt-0">
           {children}
         </main>
       </div>
