@@ -14,12 +14,13 @@ import {
   List,
   Info,
   Tag,
-  Building,
   Calendar,
   Edit2,
   Save,
   X,
-  Code
+  Code,
+  Plus,
+  Trash2
 } from 'lucide-react'
 import { useToast } from '@/components/Toast'
 
@@ -122,8 +123,12 @@ export default function WissenDetailPage() {
   const [record, setRecord] = useState<RecordData | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [showJsonEditor, setShowJsonEditor] = useState(false)
   const [editData, setEditData] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState('')
+  const [newArrayItem, setNewArrayItem] = useState('')
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -183,6 +188,93 @@ export default function WissenDetailPage() {
     }
   }
 
+  const updateField = async (fieldName: string, value: any) => {
+    if (!record) return
+
+    const newData = { ...record.data_json, [fieldName]: value }
+    setActionLoading(true)
+    try {
+      const res = await fetch(`/api/review/${params.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_json: newData })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(err.detail || 'Speichern fehlgeschlagen', 'error')
+        return
+      }
+
+      showToast('Änderung gespeichert', 'success')
+      await fetchRecord()
+    } catch {
+      showToast('Fehler beim Speichern', 'error')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const saveFieldEdit = async () => {
+    if (!editingField) return
+    await updateField(editingField, editingValue)
+    setEditingField(null)
+    setEditingValue('')
+  }
+
+  const addArrayItem = async (fieldName: string, item: string) => {
+    if (!record || !item.trim()) return
+    const currentArray = (record.data_json[fieldName] as string[]) || []
+    await updateField(fieldName, [...currentArray, item.trim()])
+    setNewArrayItem('')
+  }
+
+  const removeArrayItem = async (fieldName: string, index: number) => {
+    if (!record) return
+    const currentArray = (record.data_json[fieldName] as string[]) || []
+    await updateField(
+      fieldName,
+      currentArray.filter((_, currentIndex) => currentIndex !== index)
+    )
+  }
+
+  const formatEditableValue = (value: any) => {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item)).join('\n')
+    }
+    if (value && typeof value === 'object') {
+      return JSON.stringify(value, null, 2)
+    }
+    return value === undefined || value === null ? '' : String(value)
+  }
+
+  const parseEditedValue = (originalValue: any, rawValue: string) => {
+    if (Array.isArray(originalValue)) {
+      return rawValue
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+    if (typeof originalValue === 'number') {
+      const parsed = Number(rawValue)
+      return Number.isNaN(parsed) ? originalValue : parsed
+    }
+    if (typeof originalValue === 'boolean') {
+      return rawValue.trim().toLowerCase() === 'true'
+    }
+    if (originalValue && typeof originalValue === 'object') {
+      return JSON.parse(rawValue)
+    }
+    return rawValue
+  }
+
+  const saveGenericFieldEdit = async (fieldName: string, originalValue: any) => {
+    const parsedValue = parseEditedValue(originalValue, editingValue)
+    await updateField(fieldName, parsedValue)
+    setEditingField(null)
+    setEditingValue('')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -203,6 +295,31 @@ export default function WissenDetailPage() {
 
   const data = record.data_json
   const title = data?.title || data?.name || data?.question || 'Unbenannt'
+  const isTrainingModule = record.schema_type === 'TrainingModule'
+  const primaryTextField = isTrainingModule ? 'content' : (data?.description !== undefined ? 'description' : 'content')
+  const primaryTextTitle = isTrainingModule ? 'Inhalt' : 'Beschreibung'
+  const primaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
+  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : data?.kabeltypen)
+    ? ((isTrainingModule ? data?.related_products : data?.kabeltypen) as string[])
+    : []
+  const relatedItemsField = isTrainingModule ? 'related_products' : 'kabeltypen'
+  const relatedItemsTitle = isTrainingModule ? 'Verwandte Produkte' : 'Kompatible Kabeltypen'
+  const stepItems: string[] = Array.isArray(isTrainingModule ? data?.objectives : data?.anwendung)
+    ? ((isTrainingModule ? data?.objectives : data?.anwendung) as string[])
+    : []
+  const stepItemsField = isTrainingModule ? 'objectives' : 'anwendung'
+  const stepItemsTitle = isTrainingModule ? 'Lernziele' : 'Anwendungsschritte'
+  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : data?.features)
+    ? ((isTrainingModule ? data?.key_points : data?.features) as string[])
+    : []
+  const featureItemsField = isTrainingModule ? 'key_points' : 'features'
+  const featureItemsTitle = isTrainingModule ? 'Kernaussagen' : 'Merkmale & Besonderheiten'
+  const handledFields = [
+    'title', 'name', 'description', 'content', 'artnr', 'product_code', 'version',
+    'product_category', 'target_audience', 'kabeltypen', 'related_products',
+    'anwendung', 'objectives', 'features', 'key_points', 'medien', 'question',
+    'answer', 'steps', 'warnings', 'links', '_source_section'
+  ]
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -261,16 +378,18 @@ export default function WissenDetailPage() {
                 onClick={() => {
                   if (editing) {
                     setEditing(false)
+                    setEditingField(null)
+                    setEditingValue('')
+                    setNewArrayItem('')
                     setEditData(JSON.stringify(record.data_json, null, 2))
                   } else {
-                    setEditData(JSON.stringify(record.data_json, null, 2))
                     setEditing(true)
                   }
                 }}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-xl hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
               >
                 <Edit2 className="w-4 h-4" />
-                {editing ? 'Bearbeitung schließen' : 'Eintrag bearbeiten'}
+                {editing ? 'Bearbeitung beenden' : 'Eintrag bearbeiten'}
               </button>
               <Link
                 href={`/review/${record.id}`}
@@ -285,87 +404,200 @@ export default function WissenDetailPage() {
 
       {/* Content Sections */}
       <div className="space-y-6">
-        {/* Description */}
-        {data?.description && (
-          <ContentSection
-            icon={<FileText className="w-5 h-5" />}
-            title="Beschreibung"
-          >
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-              {data.description}
-            </p>
-          </ContentSection>
-        )}
+        <ContentSection
+          icon={<FileText className="w-5 h-5" />}
+          title={primaryTextTitle}
+          canEdit={editing}
+          onEdit={() => {
+            setEditingField(primaryTextField)
+            setEditingValue(primaryTextValue)
+          }}
+        >
+          {editingField === primaryTextField ? (
+            <div>
+              <textarea
+                value={editingValue}
+                onChange={(e) => setEditingValue(e.target.value)}
+                className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2 mt-3">
+                <button
+                  onClick={() => {
+                    setEditingField(null)
+                    setEditingValue('')
+                  }}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={saveFieldEdit}
+                  className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  Speichern
+                </button>
+              </div>
+            </div>
+          ) : primaryTextValue ? (
+            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{primaryTextValue}</p>
+          ) : (
+            <p className="text-gray-400 italic">Kein Inhalt vorhanden.</p>
+          )}
+        </ContentSection>
 
-        {/* Content (if different from description) */}
-        {data?.content && data.content !== data.description && (
+        {(relatedItems.length > 0 || editing) && (
           <ContentSection
-            icon={<FileText className="w-5 h-5" />}
-            title="Inhalt"
-          >
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-              {typeof data.content === 'string' ? data.content.slice(0, 2000) : ''}
-              {typeof data.content === 'string' && data.content.length > 2000 && '...'}
-            </p>
-          </ContentSection>
-        )}
-
-        {/* Cable Types */}
-        {data?.kabeltypen && data.kabeltypen.length > 0 && (
-          <ContentSection
-            icon={<Wrench className="w-5 h-5" />}
-            title="Kompatible Kabeltypen"
+            icon={isTrainingModule ? <Package className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
+            title={relatedItemsTitle}
           >
             <div className="flex flex-wrap gap-2">
-              {data.kabeltypen.map((kabel, i) => (
-                <span
-                  key={i}
-                  className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium"
-                >
-                  {kabel}
+              {relatedItems.map((item, i) => (
+                <span key={i} className="group px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                  {item}
+                  {editing && (
+                    <button
+                      onClick={() => removeArrayItem(relatedItemsField, i)}
+                      className="opacity-0 group-hover:opacity-100 text-blue-400 hover:text-red-500"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
+              {editing && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder={isTrainingModule ? 'Verwandtes Produkt...' : 'Neuer Kabeltyp...'}
+                    value={editingField === relatedItemsField ? newArrayItem : ''}
+                    onFocus={() => setEditingField(relatedItemsField)}
+                    onChange={(e) => setNewArrayItem(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newArrayItem.trim()) {
+                        addArrayItem(relatedItemsField, newArrayItem)
+                      }
+                    }}
+                    className="px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm w-52 focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                  />
+                  {newArrayItem.trim() && editingField === relatedItemsField && (
+                    <button
+                      onClick={() => addArrayItem(relatedItemsField, newArrayItem)}
+                      className="p-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </ContentSection>
         )}
 
-        {/* Application Steps */}
-        {data?.anwendung && data.anwendung.length > 0 && (
+        {(stepItems.length > 0 || editing) && (
           <ContentSection
             icon={<List className="w-5 h-5" />}
-            title="Anwendungsschritte"
+            title={stepItemsTitle}
           >
             <ol className="space-y-3">
-              {data.anwendung.map((step, i) => (
-                <li key={i} className="flex items-start">
+              {stepItems.map((step, i) => (
+                <li key={i} className="flex items-start group">
                   <span className="flex-shrink-0 w-7 h-7 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-semibold mr-3">
                     {i + 1}
                   </span>
-                  <span className="text-gray-700 pt-0.5">{step}</span>
+                  <span className="text-gray-700 pt-0.5 flex-1">{step}</span>
+                  {editing && (
+                    <button
+                      onClick={() => removeArrayItem(stepItemsField, i)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ol>
+            {editing && (
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+                <span className="flex-shrink-0 w-7 h-7 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center text-sm">
+                  {stepItems.length + 1}
+                </span>
+                <input
+                  type="text"
+                  placeholder={isTrainingModule ? 'Neues Lernziel hinzufügen...' : 'Neuen Schritt hinzufügen...'}
+                  value={editingField === stepItemsField ? newArrayItem : ''}
+                  onFocus={() => setEditingField(stepItemsField)}
+                  onChange={(e) => setNewArrayItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newArrayItem.trim()) {
+                      addArrayItem(stepItemsField, newArrayItem)
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                />
+                {newArrayItem.trim() && editingField === stepItemsField && (
+                  <button
+                    onClick={() => addArrayItem(stepItemsField, newArrayItem)}
+                    className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </ContentSection>
         )}
 
-        {/* Features */}
-        {data?.features && data.features.length > 0 && (
+        {(featureItems.length > 0 || editing) && (
           <ContentSection
             icon={<CheckCircle className="w-5 h-5" />}
-            title="Merkmale & Besonderheiten"
+            title={featureItemsTitle}
           >
             <ul className="space-y-2">
-              {data.features.map((feature, i) => (
-                <li key={i} className="flex items-start">
+              {featureItems.map((feature, i) => (
+                <li key={i} className="flex items-start group">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">{feature}</span>
+                  <span className="text-gray-700 flex-1">{feature}</span>
+                  {editing && (
+                    <button
+                      onClick={() => removeArrayItem(featureItemsField, i)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
+            {editing && (
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+                <CheckCircle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                <input
+                  type="text"
+                  placeholder={isTrainingModule ? 'Neue Kernaussage hinzufügen...' : 'Neues Merkmal hinzufügen...'}
+                  value={editingField === featureItemsField ? newArrayItem : ''}
+                  onFocus={() => setEditingField(featureItemsField)}
+                  onChange={(e) => setNewArrayItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newArrayItem.trim()) {
+                      addArrayItem(featureItemsField, newArrayItem)
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                />
+                {newArrayItem.trim() && editingField === featureItemsField && (
+                  <button
+                    onClick={() => addArrayItem(featureItemsField, newArrayItem)}
+                    className="p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </ContentSection>
         )}
 
-        {/* Warnings */}
         {data?.warnings && data.warnings.length > 0 && (
           <ContentSection
             icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
@@ -447,11 +679,7 @@ export default function WissenDetailPage() {
         )}
 
         {/* Other Fields - Display any remaining fields */}
-        {Object.entries(data || {}).filter(([key]) =>
-          !['title', 'name', 'description', 'content', 'artnr', 'kabeltypen',
-            'anwendung', 'features', 'medien', 'question', 'answer', 'steps',
-            'warnings', '_source_section'].includes(key)
-        ).map(([key, value]) => {
+        {Object.entries(data || {}).filter(([key]) => !handledFields.includes(key)).map(([key, value]) => {
           if (!value || (Array.isArray(value) && value.length === 0)) return null
 
           return (
@@ -459,8 +687,46 @@ export default function WissenDetailPage() {
               key={key}
               icon={<Info className="w-5 h-5" />}
               title={fieldLabels[key] || key}
+              canEdit={editing}
+              onEdit={() => {
+                setEditingField(key)
+                setEditingValue(formatEditableValue(value))
+              }}
             >
-              {Array.isArray(value) ? (
+              {editingField === key ? (
+                <div>
+                  <textarea
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    className="w-full h-36 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700 font-mono text-sm"
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-400 mt-2">
+                    {Array.isArray(value)
+                      ? 'Mehrere Werte zeilenweise eingeben.'
+                      : value && typeof value === 'object'
+                        ? 'Objekte als gültiges JSON speichern.'
+                        : 'Wert direkt bearbeiten und speichern.'}
+                  </p>
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        setEditingField(null)
+                        setEditingValue('')
+                      }}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={() => saveGenericFieldEdit(key, value)}
+                      className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    >
+                      Speichern
+                    </button>
+                  </div>
+                </div>
+              ) : Array.isArray(value) ? (
                 <ul className="space-y-1">
                   {value.map((item, i) => (
                     <li key={i} className="text-gray-700">• {String(item)}</li>
@@ -505,10 +771,10 @@ export default function WissenDetailPage() {
           <div>
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center gap-2">
               <Code className="w-5 h-5 text-gray-400" />
-              Bearbeitung
+              Technischer JSON-Editor
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              Für schnelle Korrekturen direkt hier speichern oder zur strukturierten Review-Ansicht wechseln.
+              Fallback für Sonderfälle. Für normale Korrekturen die sichtbaren Blöcke oben im Bearbeitungsmodus anpassen.
             </p>
           </div>
           <Link
@@ -519,7 +785,7 @@ export default function WissenDetailPage() {
           </Link>
         </div>
 
-        {editing ? (
+        {showJsonEditor ? (
           <div>
             <textarea
               value={editData}
@@ -529,7 +795,7 @@ export default function WissenDetailPage() {
             <div className="flex justify-end gap-2 mt-3">
               <button
                 onClick={() => {
-                  setEditing(false)
+                  setShowJsonEditor(false)
                   setEditData(JSON.stringify(record.data_json, null, 2))
                 }}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
@@ -552,7 +818,7 @@ export default function WissenDetailPage() {
             <button
               onClick={() => {
                 setEditData(JSON.stringify(record.data_json, null, 2))
-                setEditing(true)
+                setShowJsonEditor(true)
               }}
               className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-xl hover:bg-primary-100 transition-colors"
             >
@@ -571,22 +837,37 @@ function ContentSection({
   icon,
   title,
   children,
-  variant = 'default'
+  variant = 'default',
+  canEdit = false,
+  onEdit
 }: {
   icon: React.ReactNode
   title: string
   children: React.ReactNode
   variant?: 'default' | 'warning'
+  canEdit?: boolean
+  onEdit?: () => void
 }) {
   const bgColor = variant === 'warning' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
 
   return (
     <div className={`rounded-xl border p-4 sm:p-6 ${bgColor}`}>
-      <div className="flex items-center gap-2 mb-3 sm:mb-4">
-        <span className={variant === 'warning' ? 'text-amber-500' : 'text-gray-400'}>
-          {icon}
-        </span>
-        <h2 className="text-base sm:text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
+        <div className="flex items-center gap-2">
+          <span className={variant === 'warning' ? 'text-amber-500' : 'text-gray-400'}>
+            {icon}
+          </span>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">{title}</h2>
+        </div>
+        {canEdit && onEdit && (
+          <button
+            onClick={onEdit}
+            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-gray-100 rounded-lg"
+            title="Bearbeiten"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
       {children}
     </div>
