@@ -34,6 +34,16 @@ import {
   formatSchemaCoverage,
   formatSchemaCoverageSummary,
 } from '@/lib/schemaCoverage'
+import {
+  displayExcerpt,
+  displayText,
+  getSourceMetadata,
+  isTechnicalSourceField,
+  isUsefulDisplayValue,
+  sourceBadgeClass,
+  trustLabel,
+  type SourceMetadata,
+} from '@/lib/recordSource'
 
 interface Evidence {
   id: string
@@ -82,6 +92,7 @@ interface RecordType {
   version: number
   evidence_items: Evidence[]
   attachments?: Attachment[]
+  source_metadata?: SourceMetadata | null
 }
 
 const departmentLabels: { [key: string]: string } = {
@@ -130,6 +141,7 @@ const fieldLabels: { [key: string]: string } = {
   target_audience: 'Zielgruppe',
   key_points: 'Kernaussagen',
   related_products: 'Verwandte Produkte',
+  _source: 'Herkunft',
   _source_section: 'Quellabschnitt',
   // Additional Jokari product fields
   anwendungsbild: 'Anwendungsbild',
@@ -433,31 +445,38 @@ export default function RecordDetailPage() {
   const data = record.data_json
   const title = data?.title || data?.name || data?.question || record.primary_key.split('|')[0] || 'Unbenannt'
   const isTrainingModule = record.schema_type === 'TrainingModule'
+  const isFAQ = record.schema_type === 'FAQ'
   const canEditRecord = true
   const productCode = data?.artnr || data?.product_code
   const primaryTextField = isTrainingModule ? 'content' : (data?.description !== undefined ? 'description' : 'content')
   const primaryTextTitle = isTrainingModule ? 'Inhalt' : 'Beschreibung'
-  const primaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
-  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : data?.kabeltypen)
-    ? ((isTrainingModule ? data?.related_products : data?.kabeltypen) as string[])
+  const rawPrimaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
+  const source = getSourceMetadata(record)
+  const primaryTextValue = displayText(rawPrimaryTextValue, source)
+  const productRelatedItems = Array.isArray(data?.compatibility) ? data.compatibility : data?.kabeltypen
+  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : productRelatedItems)
+    ? ((isTrainingModule ? data?.related_products : productRelatedItems) as string[])
     : []
-  const relatedItemsField = isTrainingModule ? 'related_products' : 'kabeltypen'
+  const relatedItemsField = isTrainingModule ? 'related_products' : (Array.isArray(data?.compatibility) ? 'compatibility' : 'kabeltypen')
   const relatedItemsTitle = isTrainingModule ? 'Verwandte Produkte' : 'Kompatible Kabeltypen'
   const stepItems: string[] = Array.isArray(isTrainingModule ? data?.objectives : data?.anwendung)
     ? ((isTrainingModule ? data?.objectives : data?.anwendung) as string[])
     : []
   const stepItemsField = isTrainingModule ? 'objectives' : 'anwendung'
   const stepItemsTitle = isTrainingModule ? 'Lernziele' : 'Anwendungsschritte'
-  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : data?.features)
-    ? ((isTrainingModule ? data?.key_points : data?.features) as string[])
+  const productFeatureItems = Array.isArray(data?.features) ? data.features : data?.specs?.Merkmale
+  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : productFeatureItems)
+    ? ((isTrainingModule ? data?.key_points : productFeatureItems) as string[])
     : []
-  const featureItemsField = isTrainingModule ? 'key_points' : 'features'
+  const featureItemsField = isTrainingModule ? 'key_points' : (Array.isArray(data?.features) ? 'features' : 'features')
+  const featureItemsAreDerived = !Array.isArray(data?.features) && Array.isArray(data?.specs?.Merkmale)
+  const canEditFeatureItems = canEditRecord && (isTrainingModule || Array.isArray(data?.features) || (!isFAQ && !featureItemsAreDerived))
   const featureItemsTitle = isTrainingModule ? 'Kernaussagen & Verkaufsargumente' : 'Merkmale & Besonderheiten'
 
   // Fields to skip in "other fields" section
   const handledFields = ['title', 'name', 'description', 'content', 'version', 'artnr', 'product_code',
-    'product_category', 'kabeltypen', 'related_products', 'anwendung', 'objectives', 'features',
-    'key_points', 'medien', 'question', 'answer', 'warnings', '_source_section', 'links']
+    'product_category', 'kabeltypen', 'compatibility', 'related_products', 'anwendung', 'objectives', 'features',
+    'key_points', 'medien', 'question', 'answer', 'warnings', '_source_section', '_source', 'source', 'links']
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
@@ -479,6 +498,9 @@ export default function RecordDetailPage() {
                 {departmentLabels[record.department] || record.department}
               </span>
               <StatusBadge status={record.status as any} />
+              <span className={`px-2 py-1 border rounded text-xs font-medium ${sourceBadgeClass(source.source_kind)}`}>
+                {source.label}
+              </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">{title}</h1>
             {productCode && (
@@ -536,53 +558,56 @@ export default function RecordDetailPage() {
         {/* Main Content - 2/3 */}
         <div className="lg:col-span-2 space-y-6">
           {/* Description */}
-          <ContentCard
-            title={primaryTextTitle}
-            icon={<FileText className="w-5 h-5" />}
-            onEdit={() => {
-              setEditingField(primaryTextField)
-              setEditingValue(primaryTextValue)
-            }}
-            canEdit={canEditRecord}
-          >
-            {editingField === primaryTextField ? (
-              <div>
-                <textarea
-                  value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700"
-                  autoFocus
-                />
-                <div className="flex justify-end gap-2 mt-2">
-                  <button
-                    onClick={() => setEditingField(null)}
-                    className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    onClick={saveFieldEdit}
-                    className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                  >
-                    Speichern
-                  </button>
+          {(primaryTextValue || !isFAQ || editingField === primaryTextField) && (
+            <ContentCard
+              title={primaryTextTitle}
+              icon={<FileText className="w-5 h-5" />}
+              onEdit={() => {
+                setEditingField(primaryTextField)
+                setEditingValue(rawPrimaryTextValue)
+              }}
+              canEdit={canEditRecord}
+            >
+              {editingField === primaryTextField ? (
+                <div>
+                  <textarea
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      onClick={() => setEditingField(null)}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Abbrechen
+                    </button>
+                    <button
+                      onClick={saveFieldEdit}
+                      className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    >
+                      Speichern
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ) : primaryTextValue ? (
-              <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                {primaryTextValue}
-              </p>
-            ) : (
-              <p className="text-gray-400 italic">Kein Inhalt vorhanden. Klicken Sie zum Hinzufügen.</p>
-            )}
-          </ContentCard>
+              ) : primaryTextValue ? (
+                <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                  {primaryTextValue}
+                </p>
+              ) : (
+                <p className="text-gray-400 italic">Kein Inhalt vorhanden. Klicken Sie zum Hinzufügen.</p>
+              )}
+            </ContentCard>
+          )}
 
           {/* Related items */}
-          <ContentCard
+          {(relatedItems.length > 0 || (!isFAQ && canEditRecord)) && (
+            <ContentCard
             title={relatedItemsTitle}
             icon={isTrainingModule ? <Package className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
             canEdit={canEditRecord}
-          >
+            >
             <div className="flex flex-wrap gap-2">
               {relatedItems.map((item, i) => (
                 <span key={i} className="group px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
@@ -623,14 +648,16 @@ export default function RecordDetailPage() {
                 </div>
               )}
             </div>
-          </ContentCard>
+            </ContentCard>
+          )}
 
           {/* Application Steps */}
-          <ContentCard
+          {stepItems.length > 0 && (
+            <ContentCard
             title={stepItemsTitle}
             icon={<List className="w-5 h-5" />}
             canEdit={canEditRecord}
-          >
+            >
             <ol className="space-y-3">
               {stepItems.map((step, i) => (
                 <li key={i} className="flex items-start group">
@@ -677,20 +704,22 @@ export default function RecordDetailPage() {
                 )}
               </div>
             )}
-          </ContentCard>
+            </ContentCard>
+          )}
 
           {/* Features */}
-          <ContentCard
+          {(featureItems.length > 0 || (!isFAQ && canEditFeatureItems)) && (
+            <ContentCard
             title={featureItemsTitle}
             icon={<CheckCircle className="w-5 h-5" />}
-            canEdit={canEditRecord}
-          >
+            canEdit={canEditFeatureItems}
+            >
             <ul className="space-y-2">
               {featureItems.map((feature, i) => (
                 <li key={i} className="flex items-start group">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 flex-1">{feature}</span>
-                  {canEditRecord && (
+                  {canEditFeatureItems && (
                     <button
                       onClick={() => removeArrayItem(featureItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
@@ -701,7 +730,7 @@ export default function RecordDetailPage() {
                 </li>
               ))}
             </ul>
-            {canEditRecord && (
+            {canEditFeatureItems && (
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
                 <CheckCircle className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 <input
@@ -727,7 +756,8 @@ export default function RecordDetailPage() {
                 )}
               </div>
             )}
-          </ContentCard>
+            </ContentCard>
+          )}
 
           {/* Warnings */}
           {data?.warnings && data.warnings.length > 0 && (
@@ -766,7 +796,7 @@ export default function RecordDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs uppercase text-gray-500 mb-1">Antwort</p>
-                  <p className="text-gray-700">{data.answer}</p>
+                  <p className="text-gray-700 whitespace-pre-line">{displayText(data.answer, source)}</p>
                 </div>
               </div>
             </ContentCard>
@@ -912,7 +942,7 @@ export default function RecordDetailPage() {
           </ContentCard>
 
           {/* Other fields - Display ALL remaining fields in user-friendly format */}
-          {Object.entries(data || {}).filter(([key]) => !handledFields.includes(key)).map(([key, value]) => {
+        {Object.entries(data || {}).filter(([key]) => !handledFields.includes(key) && !isTechnicalSourceField(key)).map(([key, value]) => {
             // Skip empty values but keep "false" and "0"
             if (value === null || value === undefined || value === '' ||
                 (Array.isArray(value) && value.length === 0)) return null
@@ -965,7 +995,7 @@ export default function RecordDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <FieldValue fieldKey={key} value={value} />
+                  <FieldValue fieldKey={key} value={value} source={source} />
                 )}
               </ContentCard>
             )
@@ -1028,6 +1058,8 @@ export default function RecordDetailPage() {
               </div>
             )}
           </div>
+
+          <SourceOverview source={source} />
         </div>
 
         {/* Sidebar - 1/3 */}
@@ -1090,9 +1122,9 @@ export default function RecordDetailPage() {
                       {getFieldLabel(ev.field_path)}
                     </span>
                     <p className="text-xs text-gray-600 mt-1 line-clamp-3">
-                      &ldquo;{ev.excerpt}&rdquo;
-                    </p>
-                  </div>
+                    &ldquo;{displayExcerpt(ev.excerpt, 180, source)}&rdquo;
+                  </p>
+                </div>
                 ))}
               </div>
             )}
@@ -1129,6 +1161,98 @@ export default function RecordDetailPage() {
   )
 }
 
+function SourceOverview({ source }: { source: SourceMetadata }) {
+  const importedAt = source.imported_at || source.document_uploaded_at
+  const sourceTarget = source.source_url || source.api_endpoint
+  const sourceTargetIsLink = isHttpUrl(sourceTarget)
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Herkunft</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex px-3 py-1 border rounded-full text-sm font-semibold ${sourceBadgeClass(source.source_kind)}`}>
+                {source.label}
+              </span>
+              <span className="min-w-0 text-sm text-gray-500 break-words [overflow-wrap:anywhere]">{trustLabel(source.trust_type, source.authenticated_source)}</span>
+            </div>
+          </div>
+          {source.status && (
+            <span className="max-w-full rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 break-words [overflow-wrap:anywhere]">
+              Importstatus: {source.status.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+
+        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+	          {sourceTarget && (
+	            <div className="sm:col-span-2">
+	              <dt className="text-gray-500">Quelle</dt>
+	              <dd className="mt-1 min-w-0 break-all font-medium text-primary-700 [overflow-wrap:anywhere]">
+	                {sourceTargetIsLink ? (
+	                  <a href={sourceTarget} target="_blank" rel="noopener noreferrer" className="hover:underline break-all [overflow-wrap:anywhere]">
+	                    {sourceTarget}
+	                  </a>
+	                ) : (
+	                  <span className="break-all text-gray-700 [overflow-wrap:anywhere]">{sourceTarget}</span>
+	                )}
+	              </dd>
+	            </div>
+	          )}
+          {source.document_filename && (
+            <div>
+              <dt className="text-gray-500">Upload-Datei</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.document_filename}</dd>
+            </div>
+          )}
+          {source.document_owner && (
+            <div>
+              <dt className="text-gray-500">Owner</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.document_owner}</dd>
+            </div>
+          )}
+          {source.source_type && (
+            <div>
+              <dt className="text-gray-500">Importweg</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.source_type.replace(/_/g, ' ')}</dd>
+            </div>
+          )}
+          {source.source_id && (
+            <div className="sm:col-span-2">
+              <dt className="text-gray-500">Source ID</dt>
+              <dd className="mt-1 min-w-0 break-all font-mono text-xs text-gray-600 [overflow-wrap:anywhere]">{source.source_id}</dd>
+            </div>
+          )}
+          {importedAt && (
+            <div>
+              <dt className="text-gray-500">Importiert</dt>
+              <dd className="font-medium text-gray-900">{new Date(importedAt).toLocaleString('de-DE')}</dd>
+            </div>
+          )}
+          {source.content_hash && (
+            <div className="sm:col-span-2">
+              <dt className="text-gray-500">Content Hash</dt>
+              <dd className="mt-1 min-w-0 break-all font-mono text-xs text-gray-600 [overflow-wrap:anywhere]">{source.content_hash}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+    </div>
+	  )
+	}
+
+function isHttpUrl(value?: string | null) {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // Content Card Component
 function ContentCard({
   title,
@@ -1148,13 +1272,13 @@ function ContentCard({
   const bgColor = variant === 'warning' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'
 
   return (
-    <div className={`rounded-xl border p-4 sm:p-5 ${bgColor}`}>
-      <div className="flex items-center justify-between mb-3 sm:mb-4">
-        <div className="flex items-center gap-2">
+    <div className={`overflow-hidden rounded-xl border p-4 sm:p-5 ${bgColor}`}>
+      <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
+        <div className="flex min-w-0 items-center gap-2">
           <span className={variant === 'warning' ? 'text-amber-500' : 'text-gray-400'}>
             {icon}
           </span>
-          <h2 className="font-semibold text-gray-900 text-sm sm:text-base">{title}</h2>
+          <h2 className="min-w-0 font-semibold text-gray-900 text-sm sm:text-base break-words [overflow-wrap:anywhere]">{title}</h2>
         </div>
         {canEdit && onEdit && (
           <button
@@ -1172,7 +1296,7 @@ function ContentCard({
 }
 
 // FieldValue Component - Renders any field value in user-friendly format
-function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
+function FieldValue({ fieldKey, value, source }: { fieldKey: string; value: any; source?: SourceMetadata | null }) {
   // Check if it's an image filename
   const isImageFile = (str: string) =>
     /\.(jpg|jpeg|png|gif|webp|svg|tif|tiff|bmp)$/i.test(str)
@@ -1194,9 +1318,9 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     // Image file
     if (typeof val === 'string' && isImageFile(val)) {
       return (
-        <div key={index} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+        <div key={index} className="flex min-w-0 items-center gap-2 p-2 bg-blue-50 rounded-lg">
           <ImageIcon className="w-5 h-5 text-blue-500" />
-          <span className="text-blue-700 font-mono text-sm">{val}</span>
+          <span className="min-w-0 text-blue-700 font-mono text-sm break-all [overflow-wrap:anywhere]">{val}</span>
         </div>
       )
     }
@@ -1209,9 +1333,9 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
           href={val.startsWith('http') ? val : `https://${val}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-primary-600 hover:text-primary-700 hover:underline"
+          className="flex min-w-0 max-w-full items-center gap-2 text-primary-600 hover:text-primary-700 hover:underline break-all [overflow-wrap:anywhere]"
         >
-          <LinkIcon className="w-4 h-4" />
+          <LinkIcon className="w-4 h-4 shrink-0" />
           {val}
         </a>
       )
@@ -1220,9 +1344,9 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     // Document file
     if (typeof val === 'string' && isDocument(val)) {
       return (
-        <div key={index} className="flex items-center gap-2 p-2 bg-gray-100 rounded-lg">
+        <div key={index} className="flex min-w-0 items-center gap-2 p-2 bg-gray-100 rounded-lg">
           <FileText className="w-5 h-5 text-gray-500" />
-          <span className="text-gray-700 font-mono text-sm">{val}</span>
+          <span className="min-w-0 text-gray-700 font-mono text-sm break-all [overflow-wrap:anywhere]">{val}</span>
         </div>
       )
     }
@@ -1230,7 +1354,7 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     // Boolean
     if (typeof val === 'boolean') {
       return (
-        <span key={index} className={`flex items-center gap-2 ${val ? 'text-green-600' : 'text-gray-500'}`}>
+        <span key={index} className={`flex min-w-0 items-center gap-2 ${val ? 'text-green-600' : 'text-gray-500'}`}>
           {val ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
           {val ? 'Ja' : 'Nein'}
         </span>
@@ -1245,13 +1369,13 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     // Object (nested)
     if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
       return (
-        <div key={index} className="bg-gray-50 rounded-lg p-4 space-y-3">
-          {Object.entries(val).map(([k, v]) => (
-            <div key={k} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-              <span className="text-sm font-medium text-gray-500 min-w-[120px]">
+        <div key={index} className="min-w-0 max-w-full overflow-hidden bg-gray-50 rounded-lg p-4 space-y-3">
+          {Object.entries(val).filter(([k]) => !isTechnicalSourceField(k) && !(fieldKey === 'specs' && k === 'Merkmale')).map(([k, v]) => (
+            <div key={k} className="flex min-w-0 flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-sm font-medium text-gray-500 sm:min-w-[120px] sm:max-w-[180px] break-words">
                 {getFieldLabel(k)}:
               </span>
-              <span className="text-gray-700 flex-1">{renderValue(v)}</span>
+              <span className="min-w-0 max-w-full text-gray-700 flex-1 break-words [overflow-wrap:anywhere]">{renderValue(v)}</span>
             </div>
           ))}
         </div>
@@ -1259,7 +1383,7 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     }
 
     // Default: String
-    return <span key={index} className="text-gray-700">{strVal}</span>
+    return <span key={index} className="min-w-0 max-w-full whitespace-pre-line text-gray-700 break-words [overflow-wrap:anywhere]">{displayText(strVal, source)}</span>
   }
 
   // Array of values
@@ -1269,14 +1393,14 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
       return (
         <div className="space-y-3">
           {value.map((item, i) => (
-            <div key={i} className="bg-gray-50 rounded-lg p-4">
+            <div key={i} className="min-w-0 max-w-full overflow-hidden bg-gray-50 rounded-lg p-4">
               {typeof item === 'object' ? (
-                Object.entries(item).map(([k, v]) => (
-                  <div key={k} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 mb-2 last:mb-0">
-                    <span className="text-sm font-medium text-gray-500 min-w-[120px]">
+                Object.entries(item).filter(([k]) => !isTechnicalSourceField(k) && !(fieldKey === 'specs' && k === 'Merkmale')).map(([k, v]) => (
+                  <div key={k} className="flex min-w-0 flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 mb-2 last:mb-0">
+                    <span className="text-sm font-medium text-gray-500 sm:min-w-[120px] sm:max-w-[180px] break-words">
                       {getFieldLabel(k)}:
                     </span>
-                    <span className="text-gray-700 flex-1">{renderValue(v)}</span>
+                    <span className="min-w-0 max-w-full text-gray-700 flex-1 break-words [overflow-wrap:anywhere]">{renderValue(v)}</span>
                   </div>
                 ))
               ) : (
@@ -1293,9 +1417,9 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
       return (
         <div className="flex flex-wrap gap-2">
           {value.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <div key={i} className="flex min-w-0 items-center gap-2 p-2 bg-blue-50 rounded-lg">
               <ImageIcon className="w-5 h-5 text-blue-500" />
-              <span className="text-blue-700 font-mono text-sm">{item}</span>
+              <span className="min-w-0 text-blue-700 font-mono text-sm break-all [overflow-wrap:anywhere]">{item}</span>
             </div>
           ))}
         </div>
@@ -1303,12 +1427,16 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
     }
 
     // Array of simple strings/values
+    const displayItems = value.filter((item) => isUsefulDisplayValue(item, source))
+    if (displayItems.length === 0) {
+      return <p className="text-gray-400 italic">Keine verwertbaren Werte vorhanden.</p>
+    }
     return (
       <ul className="space-y-2">
-        {value.map((item, i) => (
-          <li key={i} className="flex items-start gap-2">
+        {displayItems.map((item, i) => (
+          <li key={i} className="flex min-w-0 items-start gap-2">
             <span className="text-primary-500 mt-1">•</span>
-            {renderValue(item)}
+            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{renderValue(item)}</span>
           </li>
         ))}
       </ul>
@@ -1316,5 +1444,5 @@ function FieldValue({ fieldKey, value }: { fieldKey: string; value: any }) {
   }
 
   // Single value
-  return <div>{renderValue(value)}</div>
+  return <div className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{renderValue(value)}</div>
 }

@@ -41,6 +41,7 @@ minio_data/
 *.tmp
 *.temp
 .cache/
+.playwright-cli/
 
 # Local-only project artifacts
 .claude/

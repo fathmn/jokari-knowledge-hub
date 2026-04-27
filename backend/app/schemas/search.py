@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Any
 from uuid import UUID
 from app.models.document import Department
-from app.schemas.record import EvidenceResponse
+from app.schemas.record import EvidenceResponse, SourceMetadataResponse
 
 
 class SearchQuery(BaseModel):
@@ -20,6 +20,7 @@ class SearchResult(BaseModel):
     data_json: dict[str, Any]
     evidence: list[EvidenceResponse]
     relevance_score: float
+    source_metadata: Optional[SourceMetadataResponse] = None
 
 
 class SearchResponse(BaseModel):

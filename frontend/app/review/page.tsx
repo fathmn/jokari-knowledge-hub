@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ChevronRight, RefreshCw, Package, FileText } from 'lucide-react'
 import StatusBadge from '@/components/StatusBadge'
 import { SCHEMA_COVERAGE_LABEL, formatSchemaCoverage } from '@/lib/schemaCoverage'
+import { displayExcerpt, getSourceMetadata, sourceBadgeClass, type SourceMetadata } from '@/lib/recordSource'
 
 interface RecordData {
   id: string
@@ -23,6 +24,8 @@ interface RecordData {
   completeness_score: number
   status: string
   created_at: string
+  document_id?: string | null
+  source_metadata?: SourceMetadata | null
 }
 
 interface RecordListResponse {
@@ -116,9 +119,17 @@ function ReviewContent() {
     const d = record.data_json
     const desc = d?.description || d?.content || ''
     if (typeof desc === 'string') {
-      return desc.slice(0, 120) + (desc.length > 120 ? '...' : '')
+      return displayExcerpt(desc, 150, getSourceMetadata(record))
     }
     return ''
+  }
+
+  const getHostname = (url: string) => {
+    try {
+      return new URL(url).hostname
+    } catch {
+      return url
+    }
   }
 
   return (
@@ -198,6 +209,9 @@ function ReviewContent() {
       ) : (
         <div className="space-y-3">
           {data?.records.map((record) => (
+            (() => {
+              const source = getSourceMetadata(record)
+              return (
             <Link
               key={record.id}
               href={`/review/${record.id}`}
@@ -219,12 +233,18 @@ function ReviewContent() {
                           Art. {record.data_json.artnr}
                         </span>
                       )}
+                      <span className={`inline-flex mt-1 sm:hidden px-2 py-0.5 border text-xs font-medium rounded-full ${sourceBadgeClass(source.source_kind)}`}>
+                        {source.label}
+                      </span>
                     </div>
                     {record.data_json?.artnr && (
                       <span className="hidden sm:inline-block px-2 py-0.5 bg-accent-100 text-accent-700 text-xs font-mono rounded-full shrink-0">
                         Art. {record.data_json.artnr}
                       </span>
                     )}
+                    <span className={`hidden sm:inline-flex px-2 py-0.5 border text-xs font-medium rounded-full shrink-0 ${sourceBadgeClass(source.source_kind)}`}>
+                      {source.label}
+                    </span>
                   </div>
 
                   {/* Description - hidden on mobile */}
@@ -251,6 +271,14 @@ function ReviewContent() {
                     }`}>
                       {SCHEMA_COVERAGE_LABEL} {formatSchemaCoverage(record.completeness_score)}
                     </span>
+                    {source.source_url && (
+                      <>
+                        <span className="text-neutral-400">•</span>
+                        <span className="text-neutral-500 truncate max-w-[260px]">
+                          {getHostname(source.source_url)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -261,6 +289,8 @@ function ReviewContent() {
                 </div>
               </div>
             </Link>
+              )
+            })()
           ))}
         </div>
       )}

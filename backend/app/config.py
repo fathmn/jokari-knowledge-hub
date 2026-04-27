@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     llm_provider: str = "stub"  # stub | claude
     llm_timeout_seconds: float = 120.0
+    llm_extraction_concurrency: int = 3
     claude_multi_record_confidence: float = 0.85
     claude_partial_record_confidence: float = 0.5
     claude_single_record_confidence: float = 0.9
@@ -34,9 +35,18 @@ class Settings(BaseSettings):
     record_confidence_needs_review_threshold: float = 0.5
     sales_doc_type_mismatch_section_threshold: int = 3
     sales_doc_type_mismatch_filename_markers: str = "vertriebsschulung,schulung,training"
+    stale_processing_minutes: int = 20
 
     # Upload
     allowed_upload_extensions: str = ".docx,.md,.markdown,.csv,.xlsx,.xls,.pdf"
+
+    # Trusted external ingestion
+    trusted_ingestion_api_keys: str = ""
+    trusted_pim_ingestion_sources: str = ""
+    website_import_allowed_hosts: str = "jokari.de,www.jokari.de,jostudy.de,www.jostudy.de"
+    website_import_max_pages: int = 50
+    website_import_max_images_per_page: int = 8
+    website_import_http_timeout_seconds: float = 10.0
 
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,https://jokari-knowledge-hub.vercel.app"
@@ -63,6 +73,30 @@ class Settings(BaseSettings):
             marker.strip().lower()
             for marker in self.sales_doc_type_mismatch_filename_markers.split(",")
             if marker.strip()
+        ]
+
+    @property
+    def trusted_ingestion_api_keys_list(self) -> list[str]:
+        return [
+            key.strip()
+            for key in self.trusted_ingestion_api_keys.split(",")
+            if key.strip()
+        ]
+
+    @property
+    def trusted_pim_ingestion_sources_list(self) -> list[str]:
+        return [
+            source.strip()
+            for source in self.trusted_pim_ingestion_sources.split(",")
+            if source.strip()
+        ]
+
+    @property
+    def website_import_allowed_hosts_list(self) -> list[str]:
+        return [
+            host.strip().lower()
+            for host in self.website_import_allowed_hosts.split(",")
+            if host.strip()
         ]
 
 

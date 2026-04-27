@@ -1,10 +1,28 @@
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
+from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 # Test database URL (SQLite for testing)
 TEST_DATABASE_URL = "sqlite:///./test.db"
+
+
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(_type, _compiler, **_kw):
+    return "CHAR(36)"
+
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(_type, _compiler, **_kw):
+    return "JSON"
+
+
+@compiles(Vector, "sqlite")
+def compile_vector_sqlite(_type, _compiler, **_kw):
+    return "JSON"
 
 
 @pytest.fixture(scope="session")
@@ -22,6 +40,8 @@ def engine():
 @pytest.fixture(scope="function")
 def db_session(engine):
     """Create a new database session for a test."""
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = SessionLocal()
     try:

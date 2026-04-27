@@ -1,0 +1,72 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: jokari-knowledge-hub-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "3"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      serviceAccountName: jokari-backend-runner@PROJECT_ID.iam.gserviceaccount.com
+      containerConcurrency: 20
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/jokari/jokari-knowledge-hub-backend:latest
+          ports:
+            - name: http1
+              containerPort: 8000
+          env:
+            - name: DEBUG
+              value: "false"
+            - name: LLM_PROVIDER
+              value: "claude"
+            - name: SUPABASE_BUCKET
+              value: "documents"
+            - name: WEBSITE_IMPORT_ALLOWED_HOSTS
+              value: "jokari.de,www.jokari.de,jostudy.de,www.jostudy.de"
+            - name: WEBSITE_IMPORT_MAX_PAGES
+              value: "50"
+            - name: WEBSITE_IMPORT_MAX_IMAGES_PER_PAGE
+              value: "8"
+            - name: CORS_ORIGINS
+              value: "https://jokari-knowledge-hub.vercel.app"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-database-url
+                  key: "2"
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-supabase-url
+                  key: "1"
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-supabase-service-role-key
+                  key: "1"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-anthropic-api-key
+                  key: "1"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-backend-secret-key
+                  key: "1"
+            - name: TRUSTED_INGESTION_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-trusted-ingestion-api-keys
+                  key: "1"
+            - name: TRUSTED_PIM_INGESTION_SOURCES
+              valueFrom:
+                secretKeyRef:
+                  name: jokari-trusted-pim-ingestion-sources
+                  key: "1"

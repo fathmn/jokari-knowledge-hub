@@ -13,6 +13,7 @@ from app.models.attachment import RecordAttachment
 from app.schemas.record import RecordResponse, RecordListResponse, RecordUpdate, EvidenceResponse
 from app.schemas.review import ReviewAction, ProposedUpdateResponse
 from app.auth import AuthenticatedUser, get_current_user, user_identifier
+from app.services.source_metadata import attach_source_metadata
 
 router = APIRouter()
 
@@ -57,6 +58,7 @@ async def list_review_queue(
     # Paginate
     offset = (page - 1) * limit
     records = query.offset(offset).limit(limit).all()
+    attach_source_metadata(db, records)
 
     return RecordListResponse(
         records=[RecordResponse.model_validate(r) for r in records],
@@ -77,6 +79,7 @@ async def get_record(
     record = db.query(Record).filter(Record.id == record_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="Record nicht gefunden")
+    attach_source_metadata(db, [record])
 
     # Load evidence
     evidence = db.query(Evidence).filter(Evidence.record_id == record_id).all()

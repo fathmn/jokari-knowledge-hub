@@ -4,6 +4,13 @@ from app.models.record import Record
 from app.models.evidence import Evidence
 from app.models.proposed_update import ProposedUpdate
 from app.models.audit_log import AuditLog
+from app.models.external_import import (
+    ExternalImport,
+    ExternalImportStatus,
+    ExternalSourceType,
+    ExternalTrustType,
+)
+from app.models.job import Job, JobStatus, JobType
 from app.models.attachment import RecordAttachment
 
 __all__ = [
@@ -13,5 +20,8 @@ __all__ = [
     "Evidence",
     "ProposedUpdate",
     "AuditLog",
-    "RecordAttachment"
+    "RecordAttachment",
+    "Job",
+    "JobStatus",
+    "JobType",
 ]

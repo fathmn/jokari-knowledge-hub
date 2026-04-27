@@ -622,3 +622,118 @@
 - OpenAI Embeddings / Vector Search nicht implementiert
 - E2E Tests fehlen
 - Regressionstests fuer Attachment-Upload empfohlen (Codex-Empfehlung)
+
+---
+
+## 2026-04-27 - Infrastruktur-Verifikation, ADLOCA-Vercel-Transfer und externe Ingestion
+
+### Zusammenfassung
+
+- Vercel-Projekt lokal auf `adloca/jokari-knowledge-hub` verlinkt.
+- Production-Deploy im ADLOCA-Scope ausgefuehrt: `dpl_6M6hok1WNyfwwkRvVEeK7mqnr6Vs`.
+- Hauptalias `https://jokari-knowledge-hub.vercel.app` aus `fathmns-projects` entfernt und auf den ADLOCA-Deploy gesetzt.
+- Altes Vercel-Projekt in `fathmns-projects` wurde nicht geloescht.
+- ADLOCA-Vercel-SSO-Protection ist aktiv und blockiert die `vercel.app`-Hauptdomain aktuell mit Vercel `401`.
+- Railway ist lokal nicht verlinkt/autorisierbar und die dokumentierte Backend-URL liefert `Application not found`.
+- Supabase-Projekt-Ref im Repo bleibt `gqezmqopvjvpdnknmfap`; die Supabase CLI hat aktuell keinen Access Token und kann das ADLOCA-Projekt deshalb nicht administrativ verifizieren.
+- Neue externe Ingestion fuer vertrauenswuerdige PIM/API-Daten und Website-Crawls wurde ergaenzt.
+- Externer Review-Agent hat SSRF-, Hash- und Schema-Konsistenzrisiken gefunden; diese wurden im selben Durchlauf gefixt.
+
+### Betroffene Dateien
+
+- `README.md`
+- `CLAUDE.md`
+- `NEXT_AGENT_HANDOVER_PROMPT.md`
+- `backend/app/api/__init__.py`
+- `backend/app/api/external_ingestion.py`
+- `backend/app/config.py`
+- `backend/.env.example`
+- `backend/app/models/__init__.py`
+- `backend/app/models/external_import.py`
+- `backend/app/schemas/external_ingestion.py`
+- `backend/app/services/external_ingestion.py`
+- `backend/alembic/versions/003_add_external_imports.py`
+- `backend/tests/conftest.py`
+- `backend/tests/test_external_ingestion.py`
+- `frontend/package-lock.json`
+
+### Verifikation
+
+- `npm run build` in `frontend`: erfolgreich.
+- `vercel deploy --prod -y --logs --scope adloca`: erfolgreich, Deployment `READY`.
+- `vercel alias remove jokari-knowledge-hub.vercel.app --scope fathmns-projects -y`: erfolgreich.
+- `vercel alias set jokari-knowledge-j7zulmvfl-adloca.vercel.app jokari-knowledge-hub.vercel.app --scope adloca`: erfolgreich.
+- `curl -I https://jokari-knowledge-hub.vercel.app`: Vercel `401` wegen ADLOCA SSO Protection.
+- Backend-Tests: `54 passed`.
+- `npm run build` in `frontend`: erfolgreich mit Next.js `15.5.15`.
+- `npm audit --audit-level=moderate`: zwei Moderate Advisories verbleiben; kein sicherer automatischer Fix ohne `--force`.
+
+### Offene Punkte
+
+- Vercel SSO Protection muss bewusst entschieden werden: deaktivieren oder echte Custom Domain nutzen.
+- Production-Backend-Compute muss entschieden werden: Railway wiederherstellen, alternativen Python-Host nutzen oder Supabase-only API-Umbau planen.
+- ADLOCA-Supabase-Zugriff muss mit passendem CLI-Token/Login verifiziert werden, bevor Migrationen oder Seed-Imports gegen Produktion laufen.
+- Frontend-Abhaengigkeiten wurden mit `npm audit fix` aktualisiert: Next.js `15.5.15`, Picomatch/PostCSS transitive Updates. Zwei Moderate Advisories bleiben wegen Nexts internem PostCSS; `npm audit` empfiehlt dafuer nur `npm audit fix --force`, was einen Breaking-Change-Pfad ausloesen wuerde.
+
+### Nachtrag: Supabase Migration 003
+
+- ADLOCA Supabase Access Token wurde lokal gesetzt und `supabase projects list` bestaetigte das verlinkte Projekt `gqezmqopvjvpdnknmfap / jokari-knowledge-hub`.
+- Remote-Stand vor Migration: `alembic_version = 002`; Tabellen `documents`, `records`, `chunks`, `evidence`, `audit_logs`, `proposed_updates`, `record_attachments` vorhanden; `external_imports` fehlte.
+- Migration `003_add_external_imports` wurde per `supabase db query --linked` als SQL auf Remote ausgefuehrt.
+- Verifiziert: Indizes `external_imports_pkey`, `ix_external_imports_record_id`, `ix_external_imports_source`, `uq_external_import_source_hash` existieren remote.
+- Zwei anschliessende parallele Supabase-CLI-Queries liefen in Temp-Role-Auth-Fehler (`Circuit breaker open`). Weitere Verifikation sollte nach Cooldown oder mit gesetztem `SUPABASE_DB_PASSWORD` erfolgen.
+
+### Nachtrag: SSO und Migration-Startlogik
+
+- Vercel SSO Protection fuer `adloca/jokari-knowledge-hub` wurde deaktiviert; `https://jokari-knowledge-hub.vercel.app` leitet wieder auf `/login?next=%2F`.
+- Remote-Alembic-Version wurde nach Cooldown verifiziert: `003`.
+- `backend/start.sh` fuehrt keine Migrationen mehr automatisch aus.
+- Neuer expliziter Migrationsbefehl: `backend/migrate.sh`.
+- `backend/Dockerfile`, `README.md` und `CLAUDE.md` wurden entsprechend aktualisiert.
+- Railway CLI bleibt lokal unauthorized; die lokale Railway-Config enthaelt nur ein anderes Projekt und keinen Jokari-Link.
+
+### Nachtrag: Infrastruktur-Roadmap und Job-Basis
+
+- Langfristige Empfehlung dokumentiert in `docs/architecture/INFRASTRUCTURE_RECOMMENDATION.md`.
+- Entscheidung: Railway langfristig ersetzen, aber FastAPI nicht sofort 1:1 auf Vercel Functions schieben.
+- Zielbild: Vercel fuer Frontend, Supabase fuer DB/Auth/Storage, Container-Compute fuer FastAPI API und Worker.
+- Neue Job-Basis eingefuehrt:
+  - `backend/app/models/job.py`
+  - `backend/app/services/jobs.py`
+  - `backend/alembic/versions/004_add_jobs.py`
+  - `backend/tests/test_jobs.py`
+- Zweck: Upload-, Crawl- und LLM-Arbeit schrittweise aus Webrequests in Worker/Jobs auslagern.
+- Migration `004` wurde auf Supabase ausgefuehrt und verifiziert: Remote `alembic_version = 004`, Jobs-Indizes vorhanden.
+- Verifikation nach Umsetzung: Backend `57 passed`, Frontend `npm run build` erfolgreich, `git diff --check` sauber.
+- Erster Worker-Einstieg ergaenzt:
+  - `backend/app/worker.py`
+  - `python -m app.worker --once`
+  - unterstuetzt aktuell `document_ingestion` und `website_import` als Job-Typen.
+
+### Nachtrag: Cloud Run Zielpfad
+
+- Cloud Run als empfohlener Railway-Ersatz vorbereitet:
+  - `infra/cloud-run/api.service.yaml`
+  - `infra/cloud-run/worker.job.yaml`
+  - `infra/cloud-run/README.md`
+  - `backend/.dockerignore`
+- Der API-Service nutzt weiterhin das FastAPI-Container-Modell.
+- Der Worker laeuft als Cloud Run Job mit `python -m app.worker --once`.
+- Live-Deploy wurde nicht ausgefuehrt, weil `gcloud` auf dieser Maschine nicht installiert ist und Docker Desktop nicht laeuft.
+
+### Nachtrag: Website-Import
+
+- Reproduzierbares Import-Script ergaenzt: `scripts/website-import/prepare-import.mjs`.
+- Importpaket aus `https://jokari.de/sitemap.xml` und `https://www.jostudy.de/jowiki` erzeugt.
+- Umfang:
+  - 101 Website-Records
+  - 69 `ProductSpec` aus Jokari-Produktdetailseiten
+  - 22 `TrainingModule` aus Jokari JO!STORY Detailseiten
+  - 10 `FAQ` aus JO!Study JO!Wiki Artikeln
+  - 101 Bilder in Supabase Storage hochgeladen und als `record_attachments` referenziert
+- Alle Website-Records wurden bewusst als `needs_review` importiert, nicht auto-approved, weil es ein oeffentlicher Crawl und keine authentifizierte PIM/API-Quelle ist.
+- Remote verifiziert:
+  - Record-Status nach Import: `pending=29`, `approved=5`, `needs_review=101`
+  - `external_imports` fuer `website-import-2026-04-27`: `101`
+  - importierte Attachments: `101`
+- Eine parallele Schema-Verteilungsquery lief danach in Supabase Temp-Role-Auth-Retries (`Circuit breaker open`). Die Schema-Verteilung ist aus dem Importmanifest verifiziert.

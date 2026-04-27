@@ -7,6 +7,7 @@ from app.models.record import Record, RecordStatus
 from app.models.evidence import Evidence
 from app.schemas.search import SearchResponse, SearchResult
 from app.schemas.record import EvidenceResponse
+from app.services.source_metadata import attach_source_metadata
 
 router = APIRouter()
 
@@ -58,6 +59,8 @@ async def search_knowledge(
     scored_results.sort(key=lambda x: x["score"], reverse=True)
     scored_results = scored_results[:limit]
 
+    attach_source_metadata(db, [item["record"] for item in scored_results])
+
     # Build response
     results = []
     for item in scored_results:
@@ -69,7 +72,8 @@ async def search_knowledge(
             primary_key=record.primary_key,
             data_json=record.data_json,
             evidence=[EvidenceResponse.model_validate(e) for e in item["evidence"]],
-            relevance_score=item["score"]
+            relevance_score=item["score"],
+            source_metadata=getattr(record, "source_metadata", None),
         ))
 
     return SearchResponse(
@@ -132,6 +136,7 @@ async def get_knowledge_record(
     if not record:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Record nicht gefunden oder nicht genehmigt")
+    attach_source_metadata(db, [record])
 
     # Load evidence
     evidence = db.query(Evidence).filter(Evidence.record_id == rid).all()
@@ -160,6 +165,7 @@ async def get_knowledge_record(
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
         "evidence": [EvidenceResponse.model_validate(e) for e in evidence],
         "attachments": attachment_list,
+        "source_metadata": getattr(record, "source_metadata", None),
     }
 
 

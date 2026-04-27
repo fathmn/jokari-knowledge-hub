@@ -30,6 +30,24 @@ class AttachmentResponse(BaseModel):
         from_attributes = True
 
 
+class SourceMetadataResponse(BaseModel):
+    source_kind: str
+    label: str
+    source_type: Optional[str] = None
+    source_id: Optional[str] = None
+    source_url: Optional[str] = None
+    api_endpoint: Optional[str] = None
+    trust_type: Optional[str] = None
+    authenticated_source: Optional[bool] = None
+    status: Optional[str] = None
+    content_hash: Optional[str] = None
+    imported_at: Optional[datetime] = None
+    document_filename: Optional[str] = None
+    document_owner: Optional[str] = None
+    document_uploaded_at: Optional[datetime] = None
+    details_json: Optional[dict[str, Any]] = None
+
+
 class RecordResponse(BaseModel):
     id: UUID
     document_id: Optional[UUID] = None
@@ -44,6 +62,7 @@ class RecordResponse(BaseModel):
     updated_at: datetime
     evidence_items: list[EvidenceResponse] = []
     attachments: list[AttachmentResponse] = []
+    source_metadata: Optional[SourceMetadataResponse] = None
 
     class Config:
         from_attributes = True

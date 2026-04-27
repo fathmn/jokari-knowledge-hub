@@ -11,15 +11,18 @@
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │    Frontend     │────▶│     Backend     │────▶│    Supabase     │
-│  (Next.js 14)   │     │    (FastAPI)    │     │  (PostgreSQL)   │
-│    Vercel       │     │    Railway      │     │   + Storage     │
+│  (Next.js 15)   │     │    (FastAPI)    │     │  (PostgreSQL)   │
+│ Vercel / ADLOCA │     │  Compute offen  │     │   + Storage     │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 ### Deployment URLs
-- **Frontend (Vercel)**: https://jokari-knowledge-hub.vercel.app
-- **Backend (Railway)**: https://jokari-knowledge-hub-production.up.railway.app
+- **Frontend (Vercel / ADLOCA)**: https://jokari-knowledge-hub.vercel.app
+- **Aktuelles ADLOCA Deployment**: https://jokari-knowledge-j7zulmvfl-adloca.vercel.app
+- **Backend (historisch Railway, aktuell nicht gesund)**: https://jokari-knowledge-hub-production.up.railway.app
 - **Database**: Supabase PostgreSQL mit pgvector
+
+Stand 27.04.2026: Die Hauptdomain ist von `fathmns-projects` auf `adloca/jokari-knowledge-hub` umgezogen. Das alte Alias in `fathmns-projects` wurde entfernt, das alte Projekt selbst nicht geloescht. Das ADLOCA-Projekt hat Vercel SSO Protection aktiv; die `vercel.app`-Hauptdomain liefert deshalb aktuell Vercel `401`, bevor die App-Loginseite geladen wird.
 
 ## Wichtige Verzeichnisse
 
@@ -79,7 +82,7 @@ backend/
 
 | Bereich | Technologie | Version |
 |---------|-------------|---------|
-| Frontend | Next.js (App Router) | 14.x |
+| Frontend | Next.js (App Router) | 15.5.15 |
 | Styling | Tailwind CSS | 3.x |
 | Backend | FastAPI | 0.100+ |
 | ORM | SQLAlchemy | 2.x |
@@ -174,6 +177,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+./migrate.sh
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -183,6 +187,8 @@ uvicorn app.main:app --reload --port 8000
 ```
 NEXT_PUBLIC_API_URL=https://jokari-knowledge-hub-production.up.railway.app
 ```
+
+Diese Production-URL ist aktuell ein Blocker: Der Railway-Endpunkt liefert `Application not found`. Fuer lokale Entwicklung bleibt `NEXT_PUBLIC_API_URL=http://localhost:8000` der sichere Standard.
 
 **Backend** (`.env`):
 ```
@@ -214,11 +220,13 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:3002,https://jokari-knowledg
 - Deutsche Labels in UI
 - Englische Variablen/Code
 - HANDOVER.md nach jeder Aenderung aktualisieren
+- Langfristige Infrastruktur-Entscheidungen in `docs/architecture/INFRASTRUCTURE_RECOMMENDATION.md` nachlesen und fortschreiben
 
 ## Git Workflow
 
 - Main Branch: `main`
-- Deployments: Automatisch via Vercel/Railway
+- Deployments: Frontend via Vercel im Scope `adloca`; Backend-Compute ist offen
+- DB-Migrationen laufen explizit ueber `backend/migrate.sh`, nicht mehr automatisch im App-Start.
 - Commits: Conventional Commits (feat/fix/chore)
 
 ## Häufige Tasks

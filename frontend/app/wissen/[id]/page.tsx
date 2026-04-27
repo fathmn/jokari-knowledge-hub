@@ -23,6 +23,16 @@ import {
   Trash2
 } from 'lucide-react'
 import { useToast } from '@/components/Toast'
+import {
+  displayExcerpt,
+  displayText,
+  getSourceMetadata,
+  isTechnicalSourceField,
+  isUsefulDisplayValue,
+  sourceBadgeClass,
+  trustLabel,
+  type SourceMetadata,
+} from '@/lib/recordSource'
 
 interface Evidence {
   id: string
@@ -58,6 +68,8 @@ interface RecordData {
   created_at: string
   updated_at: string
   evidence_items: Evidence[]
+  evidence?: Evidence[]
+  source_metadata?: SourceMetadata | null
 }
 
 const departmentLabels: { [key: string]: string } = {
@@ -114,6 +126,7 @@ const fieldLabels: { [key: string]: string } = {
   related_products: 'Verwandte Produkte',
   key_points: 'Kernaussagen',
   links: 'Links & Verweise',
+  _source: 'Herkunft',
   _source_section: 'Quellabschnitt'
 }
 
@@ -143,6 +156,7 @@ export default function WissenDetailPage() {
       const res = await fetch(`/api/knowledge/${params.id}`)
       if (!res.ok) throw new Error('Nicht gefunden')
       const data = await res.json()
+      data.evidence_items = data.evidence_items || data.evidence || []
       setRecord(data)
       setEditData(JSON.stringify(data.data_json, null, 2))
     } catch (err) {
@@ -151,6 +165,7 @@ export default function WissenDetailPage() {
         const res = await fetch(`/api/review/${params.id}`)
         if (!res.ok) throw new Error('Nicht gefunden')
         const data = await res.json()
+        data.evidence_items = data.evidence_items || data.evidence || []
         setRecord(data)
         setEditData(JSON.stringify(data.data_json, null, 2))
       } catch {
@@ -296,29 +311,35 @@ export default function WissenDetailPage() {
   const data = record.data_json
   const title = data?.title || data?.name || data?.question || 'Unbenannt'
   const isTrainingModule = record.schema_type === 'TrainingModule'
+  const isFAQ = record.schema_type === 'FAQ'
   const primaryTextField = isTrainingModule ? 'content' : (data?.description !== undefined ? 'description' : 'content')
   const primaryTextTitle = isTrainingModule ? 'Inhalt' : 'Beschreibung'
-  const primaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
-  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : data?.kabeltypen)
-    ? ((isTrainingModule ? data?.related_products : data?.kabeltypen) as string[])
+  const rawPrimaryTextValue = (isTrainingModule ? (data?.content || data?.description) : (data?.description || data?.content)) || ''
+  const source = getSourceMetadata(record)
+  const primaryTextValue = displayText(rawPrimaryTextValue, source)
+  const productRelatedItems = Array.isArray(data?.compatibility) ? data.compatibility : data?.kabeltypen
+  const relatedItems: string[] = Array.isArray(isTrainingModule ? data?.related_products : productRelatedItems)
+    ? ((isTrainingModule ? data?.related_products : productRelatedItems) as string[])
     : []
-  const relatedItemsField = isTrainingModule ? 'related_products' : 'kabeltypen'
+  const relatedItemsField = isTrainingModule ? 'related_products' : (Array.isArray(data?.compatibility) ? 'compatibility' : 'kabeltypen')
   const relatedItemsTitle = isTrainingModule ? 'Verwandte Produkte' : 'Kompatible Kabeltypen'
   const stepItems: string[] = Array.isArray(isTrainingModule ? data?.objectives : data?.anwendung)
     ? ((isTrainingModule ? data?.objectives : data?.anwendung) as string[])
     : []
   const stepItemsField = isTrainingModule ? 'objectives' : 'anwendung'
   const stepItemsTitle = isTrainingModule ? 'Lernziele' : 'Anwendungsschritte'
-  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : data?.features)
-    ? ((isTrainingModule ? data?.key_points : data?.features) as string[])
+  const productFeatureItems = Array.isArray(data?.features) ? data.features : data?.specs?.Merkmale
+  const featureItems: string[] = Array.isArray(isTrainingModule ? data?.key_points : productFeatureItems)
+    ? ((isTrainingModule ? data?.key_points : productFeatureItems) as string[])
     : []
   const featureItemsField = isTrainingModule ? 'key_points' : 'features'
+  const canEditFeatureItems = editing && (isTrainingModule || Array.isArray(data?.features))
   const featureItemsTitle = isTrainingModule ? 'Kernaussagen' : 'Merkmale & Besonderheiten'
   const handledFields = [
     'title', 'name', 'description', 'content', 'artnr', 'product_code', 'version',
-    'product_category', 'target_audience', 'kabeltypen', 'related_products',
+    'product_category', 'target_audience', 'kabeltypen', 'compatibility', 'related_products',
     'anwendung', 'objectives', 'features', 'key_points', 'medien', 'question',
-    'answer', 'steps', 'warnings', 'links', '_source_section'
+    'answer', 'steps', 'warnings', 'links', '_source_section', '_source', 'source'
   ]
 
   return (
@@ -347,6 +368,9 @@ export default function WissenDetailPage() {
               <span className="flex items-center text-green-600 text-xs sm:text-sm">
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Genehmigt
+              </span>
+              <span className={`px-2 sm:px-3 py-1 border rounded-full text-xs sm:text-sm font-medium ${sourceBadgeClass(source.source_kind)}`}>
+                {source.label}
               </span>
             </div>
 
@@ -404,47 +428,49 @@ export default function WissenDetailPage() {
 
       {/* Content Sections */}
       <div className="space-y-6">
-        <ContentSection
-          icon={<FileText className="w-5 h-5" />}
-          title={primaryTextTitle}
-          canEdit={editing}
-          onEdit={() => {
-            setEditingField(primaryTextField)
-            setEditingValue(primaryTextValue)
-          }}
-        >
-          {editingField === primaryTextField ? (
-            <div>
-              <textarea
-                value={editingValue}
-                onChange={(e) => setEditingValue(e.target.value)}
-                className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    setEditingField(null)
-                    setEditingValue('')
-                  }}
-                  className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  onClick={saveFieldEdit}
-                  className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                >
-                  Speichern
-                </button>
+        {(primaryTextValue || !isFAQ || editingField === primaryTextField) && (
+          <ContentSection
+            icon={<FileText className="w-5 h-5" />}
+            title={primaryTextTitle}
+            canEdit={editing}
+            onEdit={() => {
+              setEditingField(primaryTextField)
+              setEditingValue(rawPrimaryTextValue)
+            }}
+          >
+            {editingField === primaryTextField ? (
+              <div>
+                <textarea
+                  value={editingValue}
+                  onChange={(e) => setEditingValue(e.target.value)}
+                  className="w-full h-40 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-gray-700"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      setEditingField(null)
+                      setEditingValue('')
+                    }}
+                    className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={saveFieldEdit}
+                    className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  >
+                    Speichern
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : primaryTextValue ? (
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{primaryTextValue}</p>
-          ) : (
-            <p className="text-gray-400 italic">Kein Inhalt vorhanden.</p>
-          )}
-        </ContentSection>
+            ) : primaryTextValue ? (
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{primaryTextValue}</p>
+            ) : (
+              <p className="text-gray-400 italic">Kein Inhalt vorhanden.</p>
+            )}
+          </ContentSection>
+        )}
 
         {(relatedItems.length > 0 || editing) && (
           <ContentSection
@@ -558,7 +584,7 @@ export default function WissenDetailPage() {
                 <li key={i} className="flex items-start group">
                   <CheckCircle className="w-5 h-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-700 flex-1">{feature}</span>
-                  {editing && (
+                  {canEditFeatureItems && (
                     <button
                       onClick={() => removeArrayItem(featureItemsField, i)}
                       className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
@@ -569,7 +595,7 @@ export default function WissenDetailPage() {
                 </li>
               ))}
             </ul>
-            {editing && (
+            {canEditFeatureItems && (
               <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-100">
                 <CheckCircle className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 <input
@@ -647,7 +673,7 @@ export default function WissenDetailPage() {
               icon={<CheckCircle className="w-5 h-5" />}
               title="Antwort"
             >
-              <p className="text-gray-700 leading-relaxed">{data.answer}</p>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{displayText(data.answer, source)}</p>
             </ContentSection>
           </>
         )}
@@ -679,8 +705,10 @@ export default function WissenDetailPage() {
         )}
 
         {/* Other Fields - Display any remaining fields */}
-        {Object.entries(data || {}).filter(([key]) => !handledFields.includes(key)).map(([key, value]) => {
+        {Object.entries(data || {}).filter(([key]) => !handledFields.includes(key) && !isTechnicalSourceField(key)).map(([key, value]) => {
           if (!value || (Array.isArray(value) && value.length === 0)) return null
+          const displayValue = key === 'specs' ? sanitizeProductSpecs(value) : sanitizeTechnicalSourceFields(value)
+          if (!displayValue || (typeof displayValue === 'object' && !Array.isArray(displayValue) && Object.keys(displayValue).length === 0)) return null
 
           return (
             <ContentSection
@@ -726,18 +754,18 @@ export default function WissenDetailPage() {
                     </button>
                   </div>
                 </div>
-              ) : Array.isArray(value) ? (
+              ) : Array.isArray(displayValue) ? (
                 <ul className="space-y-1">
-                  {value.map((item, i) => (
-                    <li key={i} className="text-gray-700">• {String(item)}</li>
+                  {displayValue.filter((item) => isUsefulDisplayValue(item, source)).map((item, i) => (
+                    <li key={i} className="min-w-0 whitespace-pre-line text-gray-700 break-words [overflow-wrap:anywhere]">• {displayText(String(item), source)}</li>
                   ))}
                 </ul>
-              ) : typeof value === 'object' ? (
-                <pre className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg overflow-auto">
-                  {JSON.stringify(value, null, 2)}
+              ) : typeof displayValue === 'object' ? (
+                <pre className="max-w-full whitespace-pre-wrap break-words text-sm text-gray-600 bg-gray-50 p-3 rounded-lg overflow-auto [overflow-wrap:anywhere]">
+                  {JSON.stringify(displayValue, null, 2)}
                 </pre>
               ) : (
-                <p className="text-gray-700">{String(value)}</p>
+                <p className="min-w-0 whitespace-pre-line text-gray-700 break-words [overflow-wrap:anywhere]">{displayText(String(displayValue), source)}</p>
               )}
             </ContentSection>
           )
@@ -757,7 +785,7 @@ export default function WissenDetailPage() {
                   {fieldLabels[ev.field_path] || ev.field_path}
                 </span>
                 <p className="text-xs sm:text-sm text-gray-600 mt-1 line-clamp-2">
-                  &ldquo;{ev.excerpt}&rdquo;
+                  &ldquo;{displayExcerpt(ev.excerpt, 180, source)}&rdquo;
                 </p>
               </div>
             ))}
@@ -828,8 +856,129 @@ export default function WissenDetailPage() {
           </div>
         )}
       </div>
+
+      <div className="mt-6 sm:mt-8">
+        <SourceOverview source={source} />
+      </div>
     </div>
   )
+}
+
+function sanitizeTechnicalSourceFields(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeTechnicalSourceFields(item))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !isTechnicalSourceField(key))
+        .map(([key, nestedValue]) => [key, sanitizeTechnicalSourceFields(nestedValue)])
+    )
+  }
+
+  return value
+}
+
+function sanitizeProductSpecs(value: any): any {
+  const specs = sanitizeTechnicalSourceFields(value)
+  if (specs && typeof specs === 'object' && !Array.isArray(specs)) {
+    const { Merkmale, ...rest } = specs
+    return rest
+  }
+  return specs
+}
+
+function SourceOverview({ source }: { source: SourceMetadata }) {
+  const importedAt = source.imported_at || source.document_uploaded_at
+  const sourceTarget = source.source_url || source.api_endpoint
+  const sourceTargetIsLink = isHttpUrl(sourceTarget)
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Herkunft</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex px-3 py-1 border rounded-full text-sm font-semibold ${sourceBadgeClass(source.source_kind)}`}>
+                {source.label}
+              </span>
+              <span className="min-w-0 text-sm text-gray-500 break-words [overflow-wrap:anywhere]">{trustLabel(source.trust_type, source.authenticated_source)}</span>
+            </div>
+          </div>
+          {source.status && (
+            <span className="max-w-full rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 break-words [overflow-wrap:anywhere]">
+              Importstatus: {source.status.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+
+        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+	          {sourceTarget && (
+	            <div className="sm:col-span-2">
+	              <dt className="text-gray-500">Quelle</dt>
+	              <dd className="mt-1 min-w-0 break-all font-medium text-primary-700 [overflow-wrap:anywhere]">
+	                {sourceTargetIsLink ? (
+	                  <a href={sourceTarget} target="_blank" rel="noopener noreferrer" className="hover:underline break-all [overflow-wrap:anywhere]">
+	                    {sourceTarget}
+	                  </a>
+	                ) : (
+	                  <span className="break-all text-gray-700 [overflow-wrap:anywhere]">{sourceTarget}</span>
+	                )}
+	              </dd>
+	            </div>
+	          )}
+          {source.document_filename && (
+            <div>
+              <dt className="text-gray-500">Upload-Datei</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.document_filename}</dd>
+            </div>
+          )}
+          {source.document_owner && (
+            <div>
+              <dt className="text-gray-500">Owner</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.document_owner}</dd>
+            </div>
+          )}
+          {source.source_type && (
+            <div>
+              <dt className="text-gray-500">Importweg</dt>
+              <dd className="min-w-0 font-medium text-gray-900 break-words [overflow-wrap:anywhere]">{source.source_type.replace(/_/g, ' ')}</dd>
+            </div>
+          )}
+          {source.source_id && (
+            <div className="sm:col-span-2">
+              <dt className="text-gray-500">Source ID</dt>
+              <dd className="mt-1 min-w-0 break-all font-mono text-xs text-gray-600 [overflow-wrap:anywhere]">{source.source_id}</dd>
+            </div>
+          )}
+          {importedAt && (
+            <div>
+              <dt className="text-gray-500">Importiert</dt>
+              <dd className="font-medium text-gray-900">{new Date(importedAt).toLocaleString('de-DE')}</dd>
+            </div>
+          )}
+          {source.content_hash && (
+            <div className="sm:col-span-2">
+              <dt className="text-gray-500">Content Hash</dt>
+              <dd className="mt-1 min-w-0 break-all font-mono text-xs text-gray-600 [overflow-wrap:anywhere]">{source.content_hash}</dd>
+            </div>
+          )}
+        </dl>
+      </div>
+    </section>
+	  )
+	}
+
+function isHttpUrl(value?: string | null) {
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 // Content Section Component

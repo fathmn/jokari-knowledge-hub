@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import case, func
 from datetime import datetime, timedelta
 from app.database import get_db
 from app.models.document import Document, Department
@@ -8,6 +8,7 @@ from app.models.record import Record, RecordStatus
 from app.schemas.dashboard import DashboardStats, StaleRecord, MissingField
 
 router = APIRouter()
+_MISSING_FIELD_SAMPLE_SIZE = 250
 
 
 @router.get("/stats", response_model=DashboardStats)
@@ -15,91 +16,109 @@ async def get_dashboard_stats(
     db: Session = Depends(get_db)
 ):
     """Get dashboard statistics."""
+    return _build_dashboard_stats(db)
 
-    # Total documents
-    total_documents = db.query(func.count(Document.id)).scalar()
 
-    # Pending reviews (records with PENDING or NEEDS_REVIEW status)
-    pending_reviews = db.query(func.count(Record.id)).filter(
-        Record.status.in_([RecordStatus.PENDING, RecordStatus.NEEDS_REVIEW])
-    ).scalar()
+def _build_dashboard_stats(db: Session) -> DashboardStats:
+    """Build dashboard statistics with a bounded number of DB roundtrips."""
+    total_documents = db.query(func.count(Document.id)).scalar() or 0
 
-    # Approved records
-    approved_records = db.query(func.count(Record.id)).filter(
+    record_counts = db.query(
+        func.coalesce(
+            func.sum(
+                case(
+                    (Record.status.in_([RecordStatus.PENDING, RecordStatus.NEEDS_REVIEW]), 1),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("pending_reviews"),
+        func.coalesce(
+            func.sum(case((Record.status == RecordStatus.APPROVED, 1), else_=0)),
+            0,
+        ).label("approved_records"),
+        func.coalesce(
+            func.sum(case((Record.status == RecordStatus.REJECTED, 1), else_=0)),
+            0,
+        ).label("rejected_records"),
+    ).one()
+
+    completeness_by_dept = {dept.value: 0.0 for dept in Department}
+    dept_rows = db.query(
+        Record.department,
+        func.avg(Record.completeness_score),
+    ).filter(
         Record.status == RecordStatus.APPROVED
-    ).scalar()
+    ).group_by(Record.department).all()
 
-    # Rejected records
-    rejected_records = db.query(func.count(Record.id)).filter(
-        Record.status == RecordStatus.REJECTED
-    ).scalar()
-
-    # Completeness by department
-    completeness_by_dept = {}
-    for dept in Department:
-        avg = db.query(func.avg(Record.completeness_score)).filter(
-            Record.department == dept,
-            Record.status == RecordStatus.APPROVED
-        ).scalar()
-        completeness_by_dept[dept.value] = round(float(avg), 2) if avg else 0.0
-
-    # Stale records (older than 6 months)
-    six_months_ago = datetime.utcnow() - timedelta(days=180)
-    stale_records_query = db.query(Record).filter(
-        Record.status == RecordStatus.APPROVED,
-        Record.updated_at < six_months_ago
-    ).limit(10).all()
-
-    stale_records = []
-    for r in stale_records_query:
-        age_months = (datetime.utcnow() - r.updated_at).days // 30
-        stale_records.append(StaleRecord(
-            record_id=str(r.id),
-            schema_type=r.schema_type,
-            primary_key=r.primary_key,
-            age_months=age_months
-        ))
-
-    # Top missing fields
-    missing_fields = _calculate_missing_fields(db)
+    for dept, avg in dept_rows:
+        dept_key = dept.value if isinstance(dept, Department) else str(dept)
+        completeness_by_dept[dept_key] = round(float(avg), 2) if avg else 0.0
 
     return DashboardStats(
-        total_documents=total_documents or 0,
-        pending_reviews=pending_reviews or 0,
-        approved_records=approved_records or 0,
-        rejected_records=rejected_records or 0,
+        total_documents=int(total_documents),
+        pending_reviews=int(record_counts.pending_reviews or 0),
+        approved_records=int(record_counts.approved_records or 0),
+        rejected_records=int(record_counts.rejected_records or 0),
         completeness_by_department=completeness_by_dept,
-        stale_records=stale_records,
-        top_missing_fields=missing_fields
+        stale_records=_get_stale_records(db),
+        top_missing_fields=_calculate_missing_fields(db),
     )
 
 
+def _get_stale_records(db: Session) -> list[StaleRecord]:
+    """Get approved records that have not been updated recently."""
+    six_months_ago = datetime.utcnow() - timedelta(days=180)
+    now = datetime.utcnow()
+    stale_records_query = db.query(
+        Record.id,
+        Record.schema_type,
+        Record.primary_key,
+        Record.updated_at,
+    ).filter(
+        Record.status == RecordStatus.APPROVED,
+        Record.updated_at < six_months_ago,
+    ).limit(10).all()
+
+    return [
+        StaleRecord(
+            record_id=str(record.id),
+            schema_type=record.schema_type,
+            primary_key=record.primary_key,
+            age_months=(now - record.updated_at).days // 30,
+        )
+        for record in stale_records_query
+    ]
+
+
 def _calculate_missing_fields(db: Session) -> list[MissingField]:
-    """Calculate most frequently missing fields across records."""
+    """Calculate most frequently missing fields across review records."""
     from app.services.completeness import CompletenessService
     from app.schemas.knowledge.registry import get_schema_registry
     from app.models.document import DocType
 
     registry = get_schema_registry()
     completeness = CompletenessService()
+    schema_to_doc_type = {}
+    for doc_type in DocType:
+        schema = registry.get_schema(doc_type)
+        schema_to_doc_type[schema.__name__] = doc_type
 
-    # Get pending/needs_review records
-    records = db.query(Record).filter(
+    records = db.query(
+        Record.schema_type,
+        Record.data_json,
+    ).filter(
         Record.status.in_([RecordStatus.PENDING, RecordStatus.NEEDS_REVIEW])
-    ).limit(100).all()
+    ).order_by(
+        Record.updated_at.desc(),
+        Record.id.desc(),
+    ).limit(_MISSING_FIELD_SAMPLE_SIZE).all()
 
     field_counts = {}
 
     for record in records:
         try:
-            # Find the doc_type for this schema
-            doc_type = None
-            for dt in DocType:
-                schema = registry.get_schema(dt)
-                if schema.__name__ == record.schema_type:
-                    doc_type = dt
-                    break
-
+            doc_type = schema_to_doc_type.get(record.schema_type)
             if doc_type:
                 missing = completeness.get_missing_fields(doc_type, record.data_json)
                 for field in missing:
@@ -108,7 +127,6 @@ def _calculate_missing_fields(db: Session) -> list[MissingField]:
         except Exception:
             continue
 
-    # Sort and return top 10
     sorted_fields = sorted(field_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
     return [

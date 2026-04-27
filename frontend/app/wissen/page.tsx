@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Package, Filter, ChevronRight, BookOpen, CheckCircle } from 'lucide-react'
+import { displayExcerpt, getSourceMetadata, sourceBadgeClass, type SourceMetadata } from '@/lib/recordSource'
 
 interface RecordData {
   id: string
@@ -24,6 +25,8 @@ interface RecordData {
   status: string
   created_at: string
   updated_at: string
+  document_id?: string | null
+  source_metadata?: SourceMetadata | null
 }
 
 interface RecordListResponse {
@@ -129,7 +132,7 @@ function WissenContent() {
     const d = record.data_json
     const desc = d?.description || d?.content || ''
     if (typeof desc === 'string') {
-      return desc.slice(0, 150) + (desc.length > 150 ? '...' : '')
+      return displayExcerpt(desc, 150, getSourceMetadata(record))
     }
     return ''
   }
@@ -336,6 +339,8 @@ export default function WissenPage() {
 
 // Record Card Component
 function RecordCard({ record }: { record: RecordData }) {
+  const source = getSourceMetadata(record)
+
   const getDisplayTitle = (r: RecordData): string => {
     const d = r.data_json
     return d?.title || d?.name || d?.question || r.primary_key.split('|')[0] || 'Unbenannt'
@@ -345,7 +350,7 @@ function RecordCard({ record }: { record: RecordData }) {
     const d = r.data_json
     const desc = d?.description || d?.content || ''
     if (typeof desc === 'string') {
-      return desc.slice(0, 100) + (desc.length > 100 ? '...' : '')
+      return displayExcerpt(desc, 120, getSourceMetadata(record))
     }
     return ''
   }
@@ -361,6 +366,9 @@ function RecordCard({ record }: { record: RecordData }) {
           <Package className="w-5 h-5 text-gray-400" />
           <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
             {schemaLabels[record.schema_type] || record.schema_type}
+          </span>
+          <span className={`text-xs px-2 py-0.5 border rounded ${sourceBadgeClass(source.source_kind)}`}>
+            {source.label}
           </span>
         </div>
         <CheckCircle className="w-4 h-4 text-green-500" />

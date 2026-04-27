@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/utils/supabase/middleware'
 
-const PUBLIC_PATHS = new Set(['/login', '/signup'])
+const PUBLIC_PATHS = new Set(['/login'])
 
 export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request)

@@ -15,11 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Make startup script executable
-RUN chmod +x start.sh
+# Make startup scripts executable
+RUN chmod +x start.sh migrate.sh
 
-# Expose port (Railway uses $PORT)
+# Expose port (cloud hosts usually inject $PORT)
 EXPOSE 8000
 
-# Run migrations and start application
+# Start application. Run ./migrate.sh as an explicit deploy step before rollout.
 CMD ["./start.sh"]

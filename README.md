@@ -6,37 +6,45 @@ Interne Wissensmanagement-Plattform für strukturierte Dokumentenverarbeitung, R
 
 Wenn du als Entwickler schnell einsteigen willst, sind das die wichtigsten Punkte:
 
-- Die produktive Hauptdomain ist `https://jokari-knowledge-hub.vercel.app`
-- `cyan` ist nicht mehr relevant und soll nicht mehr verwendet werden
+- Die produktive Hauptdomain `https://jokari-knowledge-hub.vercel.app` ist auf das ADLOCA-Vercel-Projekt aliasiert
+- `cyan` ist nicht mehr die Hauptdomain und soll nicht als fuehrender Deploy-Pfad verwendet werden
 - Der aktuelle Live-Stack ist:
-  - `Vercel` für das Next.js-Frontend
+  - `Vercel` fuer das Next.js-Frontend im Scope `adloca`
   - `Supabase` für Auth, Postgres und Storage
-  - `Railway` nur noch als Compute-Host für das bestehende FastAPI-Backend
-- Das Zielbild ist weiterhin `Vercel + Supabase only`, aber dieser letzte Compute-Migrationsschritt ist noch offen
+  - `Cloud Run` fuer FastAPI-API und Worker
 - Auth ist produktiv aktiv
   - offene Registrierung ist deaktiviert
   - Login läuft aktuell über E-Mail + Passwort
-  - neue Benutzer müssen manuell per Supabase angelegt werden
+  - neue Benutzer und Rollen werden ausschließlich in Supabase verwaltet
 - Das Repo ist auf dem aktuellen produktiven Stand
   - `main` enthält die Auth-Rückkehr aus dem Demo-Modus und das Next.js-Sicherheitsupgrade
 
 ## Produktionsstatus
 
-Stand: 24.03.2026
+Stand: 27.04.2026
 
 ### Live-URLs
 
 - Frontend: `https://jokari-knowledge-hub.vercel.app`
-- Backend: `https://jokari-knowledge-hub-production.up.railway.app`
-- Healthcheck: `https://jokari-knowledge-hub-production.up.railway.app/health`
+- Vercel-Projekt: `adloca/jokari-knowledge-hub`
+- Vercel-Deployment: `https://jokari-knowledge-p7ixpp6fa-adloca.vercel.app`
+- Backend API: `https://jokari-knowledge-hub-api-apz7sfnrsa-ey.a.run.app`
+- Backend Healthcheck: `https://jokari-knowledge-hub-api-apz7sfnrsa-ey.a.run.app/health`
+
+Aktueller Infrastruktur-Befund:
+
+- `https://jokari-knowledge-hub.vercel.app` wurde am 27.04.2026 aus `fathmns-projects` entfernt und auf `adloca/jokari-knowledge-hub` gesetzt.
+- Vercel SSO Protection ist deaktiviert, damit die App selbst den Supabase-Login ausliefert.
+- `NEXT_PUBLIC_API_URL` zeigt in der ADLOCA-Production-Env auf die Cloud-Run-API.
+- Die alte Railway-URL ist nicht mehr der produktive Backend-Pfad.
 
 ### Produktive Architektur
 
 ```text
 Browser
-  -> Vercel / Next.js Frontend
+  -> Vercel / Next.js Frontend (adloca)
     -> /api/* Rewrite
-      -> Railway / FastAPI Backend
+      -> FastAPI Backend URL aus NEXT_PUBLIC_API_URL
         -> Supabase Postgres
         -> Supabase Storage (Bucket: documents)
         -> Supabase Auth
@@ -47,7 +55,7 @@ Browser
 - Das frühere README war an mehreren Stellen veraltet.
 - `MinIO`, `Redis` und `Celery` sind nicht mehr der aktuelle Produktionspfad.
 - `Magic Link` war zwischenzeitlich ein Thema, ist aber aktuell nicht der primäre Login-Flow.
-- Die temporäre `cyan`-Vercel-Domain war ein Workaround während eines Domain-/Projektkonflikts in Vercel und ist jetzt obsolet.
+- Die temporaere `cyan`-Vercel-Domain existiert noch als Alias im ADLOCA-Projekt, ist aber nicht mehr die fuehrende Hauptdomain.
 
 ## Was die App fachlich macht
 
@@ -78,7 +86,7 @@ Stand: 26.03.2026
 
 ### Frontend
 
-- Next.js 15.5.14
+- Next.js 15.5.15
 - React 18
 - TypeScript
 - Tailwind CSS
@@ -97,7 +105,7 @@ Stand: 26.03.2026
 - Supabase Postgres
 - Supabase Auth
 - Supabase Storage
-- Railway für den laufenden Python-Compute
+- Cloud Run fuer FastAPI/Python-Compute und Worker-Jobs
 - Vercel für das Frontend
 
 ## Auth und Berechtigungen
@@ -131,8 +139,7 @@ Die Rollen werden im Backend aus Supabase-Metadaten gelesen:
 - Nicht eingeloggte Nutzer werden über Middleware auf `/login` umgeleitet
 - Öffentliche Routen sind aktuell:
   - `/login`
-  - `/signup`
-- `/signup` ist keine echte Registrierung mehr, sondern nur noch eine Hinweisseite
+- `/signup` ist entfernt. Account-Erstellung erfolgt nicht in der App.
 
 ### Backend
 
@@ -141,7 +148,7 @@ Die Rollen werden im Backend aus Supabase-Metadaten gelesen:
 
 ## Benutzer anlegen
 
-Da `signup` deaktiviert ist, müssen neue Nutzer manuell in Supabase erstellt werden.
+Da `signup` deaktiviert und aus der App entfernt ist, müssen neue Nutzer in Supabase erstellt werden.
 
 ### Empfohlener Weg
 
@@ -184,6 +191,12 @@ Dieses README ist die schnellste Einstiegsdoku für den Ist-Zustand.
 
 Weitere relevante Dateien:
 
+- `docs/architecture/INFRASTRUCTURE_RECOMMENDATION.md`
+  - langfristige Infrastruktur-Empfehlung
+  - Roadmap fuer Railway-Ablösung, Container-Compute, Jobs/Worker und Migrationen
+- `infra/cloud-run/README.md`
+  - empfohlener Container-Deploymentpfad fuer FastAPI API und Worker
+  - listet notwendige Secrets und Deploy-Schritte
 - `HANDOVER.md`
   - chronologisches Protokoll der Änderungen
   - nützlich für Ursachenanalyse und Verlauf
@@ -216,8 +229,18 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-alembic upgrade head
+./migrate.sh
 uvicorn app.main:app --reload --port 8000
+```
+
+### Worker lokal starten
+
+Langlaufende Jobs sollen schrittweise aus API-Requests herausgeloest werden. Der erste Worker-Einstieg verarbeitet queued Jobs aus der Tabelle `jobs`.
+
+```bash
+cd backend
+source venv/bin/activate
+python -m app.worker --once
 ```
 
 ### Frontend lokal starten
@@ -276,23 +299,32 @@ Es gab zwei getrennte Vercel-Projekte mit identischem Namen:
 - `fathmns-projects/jokari-knowledge-hub`
 - `adloca/jokari-knowledge-hub`
 
-Die produktive Hauptdomain hängt jetzt wieder am richtigen Projekt:
+Die produktive Hauptdomain haengt seit 27.04.2026 am ADLOCA-Projekt:
 
-- `fathmns-projects/jokari-knowledge-hub`
+- `adloca/jokari-knowledge-hub`
 
-Die lokale Verknüpfung `.vercel/project.json` zeigt ebenfalls auf dieses Projekt.
+Die lokale Verknuepfung `.vercel/project.json` zeigt ebenfalls auf dieses Projekt.
+
+Das fruehere Alias in `fathmns-projects` wurde entfernt. Das alte Vercel-Projekt selbst wurde nicht geloescht.
+
+Wichtiger Zugriffsstatus: Im ADLOCA-Projekt ist Vercel SSO Protection deaktiviert. Die App nutzt den eigenen Supabase-Login.
 
 ### Manueller Production-Deploy
 
 ```bash
-vercel deploy --prod -y --logs
+vercel deploy --prod -y --logs --scope adloca
 ```
 
 ### Backend
 
-Das Backend läuft aktuell auf Railway.
+Der produktive Backend-Pfad ist Cloud Run:
 
-Aktueller Service-Kontext:
+- API: `https://jokari-knowledge-hub-api-apz7sfnrsa-ey.a.run.app`
+- Worker: Cloud Run Job `jokari-knowledge-hub-worker`
+
+Der alte Railway-Pfad ist historisch und aktuell nicht gesund.
+
+Dokumentierter historischer Service-Kontext:
 
 - Project: `gracious-magic`
 - Environment: `production`
@@ -301,12 +333,31 @@ Aktueller Service-Kontext:
 ### Manueller Deploy
 
 ```bash
-railway up backend --path-as-root -s jokari-knowledge-hub -c --verbose
+gcloud builds submit backend \
+  --tag europe-west3-docker.pkg.dev/jokari-knowledge-hub/jokari/jokari-knowledge-hub-backend:latest \
+  --project jokari-knowledge-hub
+
+gcloud run services replace /tmp/jokari-api.service.yaml \
+  --region europe-west3 \
+  --project jokari-knowledge-hub
+
+gcloud run jobs replace /tmp/jokari-worker.job.yaml \
+  --region europe-west3 \
+  --project jokari-knowledge-hub
 ```
+
+Migrationen sollen explizit vor einem Deploy/Start laufen. Der App-Start selbst fuehrt keine Datenbankmigration mehr automatisch aus.
 
 ### Hinweis zur Datenbankverbindung
 
-In Railway muss für Supabase die funktionierende produktive Connection verwendet werden. Der direkte Supabase-DB-Host war in diesem Setup problematisch; produktiv wurde deshalb auf den Supabase Pooler gewechselt.
+Cloud Run verwendet eine dedizierte Runtime-DB-Rolle `jokari_backend` ueber den Supabase Session Pooler `aws-1-eu-central-1.pooler.supabase.com:5432`. Der direkte Supabase-DB-Host ist IPv6-only und fuer diesen Cloud-Run-Pfad nicht der Standard.
+
+Aktueller Befund vom 27.04.2026:
+
+- `railway status` im Repo findet kein verlinktes Railway-Projekt.
+- `railway whoami` ist lokal nicht autorisiert.
+- `https://jokari-knowledge-hub-production.up.railway.app/health` liefert `Application not found`.
+- Railway kann deshalb nicht als bestaetigter aktiver Production-Backend-Host gelten.
 
 ## Verifikation nach Deploy
 
@@ -318,12 +369,18 @@ Erwartetes Verhalten:
 - `/` leitet abgemeldet auf `/login?next=%2F`
 - `site.webmanifest` liefert `200` und darf nicht auf Login umgeleitet werden
 
+Aktueller ADLOCA-Status:
+
+- Deployment ist `READY`.
+- Hauptalias zeigt auf ADLOCA.
+- Vercel SSO Protection ist deaktiviert; die App leitet abgemeldet auf `/login` um.
+
 ### Backend
 
-Erwartetes Verhalten:
+Produktives Verhalten:
 
 ```bash
-curl https://jokari-knowledge-hub-production.up.railway.app/health
+curl https://jokari-knowledge-hub-api-apz7sfnrsa-ey.a.run.app/health
 ```
 
 Soll liefern:
@@ -338,26 +395,30 @@ Soll liefern:
 
 - Passwort-Login ist derzeit der produktive Default
 - offene Registrierung ist abgeschaltet
-- Railway bleibt vorerst als Compute-Layer bestehen
+- Supabase bleibt Source of Truth fuer Auth, Postgres und Storage
+- FastAPI laeuft produktiv auf Cloud Run; Worker-Jobs laufen als Cloud Run Job
+- User-Anlage und Rollenvergabe passieren nur in Supabase, nicht ueber App-Endpunkte
 
 ### Nicht mehr aktuell
 
 - MinIO als produktiver Storage
 - Redis / Celery als produktiver Worker-Pfad
 - offene Signup-Strecke
+- interner App-/Backend-Endpoint zur User-Erstellung
 - `cyan` als bevorzugte Frontend-Domain
 
 ## Bekannte offene Punkte
 
-### 1. Railway ist noch nicht eliminiert
+### 1. Backend-Compute
 
 Das endgültige Zielbild ist:
 
 - `Vercel` für Frontend
-- `Vercel` oder andere serverlose Zielplattform für den Python-/API-Teil
 - `Supabase` für Daten, Auth, Storage
+- FastAPI/Python als Container auf Cloud Run betreiben
+- laengere Jobs als Cloud Run Jobs ausfuehren
 
-Dieser letzte Migrationsschritt ist noch offen.
+Supabase ersetzt Railway nicht als Drop-in-Host fuer das bestehende FastAPI/Python-Backend. Eine Supabase-only-Migration waere ein gezielter API-Umbau, kein Env-Wechsel.
 
 ### 2. Magic Link ist nicht der primäre Login-Flow
 
@@ -369,27 +430,27 @@ Wenn Magic Links wieder produktiv werden sollen:
 2. UI-Flow bewusst wieder aktivieren
 3. Login-Verhalten erneut smoke-testen
 
-### 3. Rollen- und User-Operations sind noch manuell
+### 3. Rollen- und User-Operations sind bewusst in Supabase
 
-Benutzeranlage und Rollenvergabe passieren aktuell über Supabase-Admin-Funktionen, nicht über eine interne Admin-Oberfläche.
+Benutzeranlage und Rollenvergabe passieren ueber Supabase Auth/Admin, nicht ueber eine interne Admin-Oberflaeche oder einen Backend-Setup-Endpunkt.
 
 ## Sicherheitsstatus
 
-Stand 24.03.2026:
+Stand 27.04.2026:
 
 - Auth ist aktiv
 - Self-signup ist deaktiviert
 - Backend-Router sind geschützt
 - Frontend sendet Supabase Bearer Tokens automatisch an `/api/*`
 - Next.js wurde auf eine gepatchte Version angehoben
-- `npm audit` ist aktuell sauber
+- `npm audit` meldet aktuell zwei moderate Next/PostCSS-Findings; `npm audit fix --force` waere ein potenziell brechender Downgrade-/Upgrade-Pfad und wurde nicht automatisch ausgefuehrt.
 
 ## Empfohlene nächste Schritte
 
 1. Review-Queue fuer groessere Multi-Record-Imports gezielt verbessern
 2. Das reale Benchmark-Dokument produktionsnah mit Claude erneut durchtesten und die resultierende `needs_review`-Quote gegen den bisherigen Stand vergleichen
 3. Interne Suche von Textsuche auf embeddings-/`pgvector`-gestuetztes Retrieval anheben
-4. Danach Railway als Compute-Layer gezielt abloesen
+4. Optional: Supabase-only Rewrite einzelner Backend-Funktionen evaluieren, wenn FastAPI langfristig reduziert werden soll
 
 ## Tests und Kommandos
 

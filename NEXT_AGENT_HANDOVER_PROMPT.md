@@ -31,10 +31,11 @@ Dein Fokus ist ausschliesslich:
 ## Relevanter Produktionsstand
 
 - Hauptdomain: `https://jokari-knowledge-hub.vercel.app`
-- Backend: `https://jokari-knowledge-hub-production.up.railway.app`
+- Vercel-Projekt: `adloca/jokari-knowledge-hub`
+- Backend: historisch `https://jokari-knowledge-hub-production.up.railway.app`, aktuell nicht gesund (`Application not found`)
 - Stack:
-  - Vercel fuer Frontend
-  - Railway fuer FastAPI-Compute
+  - Vercel fuer Frontend im ADLOCA-Scope
+  - FastAPI-Compute aktuell offen
   - Supabase fuer Auth, Postgres, Storage
 - aktueller relevanter Commit: `5ad914d`
 - Claude ist der aktive Extraktor
@@ -74,7 +75,9 @@ Das ist dein Hauptsignal:
 - Claude-JSON-Normalisierung wurde gehaertet
 - Single-Record- und Multi-Record-Smoke-Tests funktionieren wieder
 - zentrale Seiten wurden live geprueft
-- Railway-Deploy ueber Git ist wieder stabil
+- Vercel-Hauptalias wurde von `fathmns-projects` auf `adloca/jokari-knowledge-hub` uebertragen
+- ADLOCA-Vercel-SSO-Protection blockiert die `vercel.app`-Domain aktuell mit `401`
+- Railway ist aktuell nicht als gesunder Backend-Host verifiziert
 
 ## Deine erste Aufgabe
 

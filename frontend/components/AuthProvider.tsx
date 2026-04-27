@@ -40,7 +40,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const isPublicRoute = pathname === '/login' || pathname === '/signup'
+  const isPublicRoute = pathname === '/login'
 
   useEffect(() => {
     let mounted = true
