@@ -157,10 +157,7 @@ function ReviewContent() {
       <div className="flex flex-col sm:flex-row gap-3 mb-4 lg:mb-6">
         <select
           value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value)
-            setPage(1)
-          }}
+          onChange={(e) => setStatusFilter(e.target.value)}
           className="w-full sm:w-auto px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm
                      text-neutral-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
@@ -173,10 +170,7 @@ function ReviewContent() {
 
         <select
           value={departmentFilter}
-          onChange={(e) => {
-            setDepartmentFilter(e.target.value)
-            setPage(1)
-          }}
+          onChange={(e) => setDepartmentFilter(e.target.value)}
           className="w-full sm:w-auto px-4 py-2.5 bg-white border border-neutral-200 rounded-xl text-sm
                      text-neutral-700 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
