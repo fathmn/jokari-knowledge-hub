@@ -59,7 +59,7 @@ def test_dashboard_stats_are_built_from_aggregated_queries(db_session):
     assert stats.approved_records == 1
     assert stats.rejected_records == 1
     assert stats.completeness_by_department["support"] == 0.75
-    assert stats.completeness_by_department["sales"] == 0.0
+    assert "sales" not in stats.completeness_by_department
     assert len(stats.stale_records) == 1
     assert stats.stale_records[0].primary_key == "approved"
     assert [field.model_dump() for field in stats.top_missing_fields] == [

@@ -43,7 +43,7 @@ def _build_dashboard_stats(db: Session) -> DashboardStats:
         ).label("rejected_records"),
     ).one()
 
-    completeness_by_dept = {dept.value: 0.0 for dept in Department}
+    completeness_by_dept = {}
     dept_rows = db.query(
         Record.department,
         func.avg(Record.completeness_score),
