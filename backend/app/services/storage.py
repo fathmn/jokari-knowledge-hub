@@ -60,6 +60,8 @@ class StorageService:
 
     def get_file_url(self, object_name: str, expires_in: int = 3600) -> str:
         """Get a signed URL for file access (default 1 hour)."""
+        if object_name.startswith(("http://", "https://")):
+            return object_name
         response = self.client.storage.from_(self.bucket).create_signed_url(
             object_name,
             expires_in
@@ -68,6 +70,8 @@ class StorageService:
 
     def delete_file(self, object_name: str):
         """Delete a file from storage."""
+        if object_name.startswith(("http://", "https://")):
+            return
         self.client.storage.from_(self.bucket).remove([object_name])
 
     def download_to_temp(self, object_name: str) -> str:

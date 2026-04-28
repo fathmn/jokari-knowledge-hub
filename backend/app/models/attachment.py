@@ -16,6 +16,8 @@ class RecordAttachment(Base):
     file_type = Column(String(100), nullable=False)  # MIME type
     file_path = Column(String(1000), nullable=False)  # Path in MinIO
     file_size = Column(String(50), nullable=True)  # Human-readable size
+    source_url = Column(String(1000), nullable=True)
+    content_hash = Column(String(64), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Non-persistent attribute for presigned URL (not a DB column)

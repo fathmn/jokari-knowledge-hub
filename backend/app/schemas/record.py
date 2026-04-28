@@ -24,6 +24,8 @@ class AttachmentResponse(BaseModel):
     file_type: str
     file_size: Optional[str] = None
     url: Optional[str] = None
+    source_url: Optional[str] = None
+    content_hash: Optional[str] = None
     created_at: datetime
 
     class Config:

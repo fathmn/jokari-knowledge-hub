@@ -397,6 +397,8 @@ async def list_attachments(
             "file_type": att.file_type,
             "file_size": att.file_size,
             "url": url,
+            "source_url": att.source_url,
+            "content_hash": att.content_hash,
             "created_at": att.created_at.isoformat()
         })
 

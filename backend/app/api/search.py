@@ -150,7 +150,10 @@ async def get_knowledge_record(
             "id": str(att.id),
             "filename": att.filename,
             "file_type": att.file_type,
+            "file_size": att.file_size,
             "url": storage.get_file_url(att.file_path),
+            "source_url": att.source_url,
+            "content_hash": att.content_hash,
         })
 
     return {
